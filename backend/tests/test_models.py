@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import User, Team, Company, Customer, Component
+from app.models import User, Team, Company, Customer, Component, Feature
 from decimal import Decimal
 from datetime import date
 
@@ -95,3 +95,35 @@ def test_component_model_with_hierarchy(db_session):
     assert result is not None
     assert result.name == "API"
     assert result.parent.name == "Platform"
+
+
+def test_feature_model_create(db_session):
+    user = User(pb_id="pb_user_pm", name="PM Alice")
+    team = Team(pb_id="pb_team_platform", name="Platform")
+    db_session.add_all([user, team])
+    db_session.commit()
+
+    feature = Feature(
+        pb_id="pb_feature_123",
+        name="User Authentication",
+        description="Add OAuth support",
+        type="feature",
+        status="in_progress",
+        owner_id=user.id,
+        team_id=team.id,
+        product_area="Security",
+        product_area_stack_rank=1,
+        committed=True,
+        risk="low",
+        custom_fields={"priority": "high"},
+    )
+    db_session.add(feature)
+    db_session.commit()
+
+    result = db_session.query(Feature).filter_by(pb_id="pb_feature_123").first()
+    assert result is not None
+    assert result.name == "User Authentication"
+    assert result.product_area == "Security"
+    assert result.committed is True
+    assert result.custom_fields["priority"] == "high"
+    assert result.owner.name == "PM Alice"
