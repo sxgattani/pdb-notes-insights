@@ -7,9 +7,10 @@ from alembic import context
 
 from app.config import get_settings
 from app.database import Base
-
-# Import all models here so they're registered with Base
-# from app.models import note, feature, customer, company, user, team, component
+from app.models import (
+    User, Team, Company, Customer, Component,
+    Feature, Note, NoteFeature, FeatureCustomer, SyncHistory
+)
 
 config = context.config
 
