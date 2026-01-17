@@ -3,8 +3,10 @@ from app.integrations.productboard.notes import NotesAPI
 from app.integrations.productboard.features import FeaturesAPI
 from app.integrations.productboard.companies import CompaniesAPI
 from app.integrations.productboard.customers import CustomersAPI
+from app.integrations.productboard.users import UsersAPI
+from app.integrations.productboard.components import ComponentsAPI
 
 __all__ = [
     "ProductBoardClient", "NotesAPI", "FeaturesAPI",
-    "CompaniesAPI", "CustomersAPI"
+    "CompaniesAPI", "CustomersAPI", "UsersAPI", "ComponentsAPI"
 ]
