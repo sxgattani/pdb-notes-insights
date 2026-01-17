@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import User, Team, Company, Customer
+from app.models import User, Team, Company, Customer, Component
 from decimal import Decimal
 from datetime import date
 
@@ -80,3 +80,18 @@ def test_customer_model_with_company(db_session):
     assert result is not None
     assert result.name == "Jane Doe"
     assert result.company.name == "Test Corp"
+
+
+def test_component_model_with_hierarchy(db_session):
+    parent = Component(pb_id="pb_comp_parent", name="Platform")
+    db_session.add(parent)
+    db_session.commit()
+
+    child = Component(pb_id="pb_comp_child", name="API", parent_id=parent.id)
+    db_session.add(child)
+    db_session.commit()
+
+    result = db_session.query(Component).filter_by(pb_id="pb_comp_child").first()
+    assert result is not None
+    assert result.name == "API"
+    assert result.parent.name == "Platform"
