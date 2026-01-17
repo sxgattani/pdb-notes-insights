@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.api import sync
+from app.api import sync, notes
 
 settings = get_settings()
 
@@ -22,6 +22,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(sync.router, prefix="/api/v1")
+app.include_router(notes.router, prefix="/api/v1")
 
 
 @app.get("/health")
