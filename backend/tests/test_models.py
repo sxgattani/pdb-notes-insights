@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import User, Team, Company, Customer, Component, Feature, Note, NoteFeature, FeatureCustomer
+from app.models import User, Team, Company, Customer, Component, Feature, Note, NoteFeature, FeatureCustomer, SyncHistory
 from decimal import Decimal
 from datetime import date, datetime, timezone
 
@@ -209,3 +209,17 @@ def test_feature_customer_relationship(db_session):
     assert result.customer_id == customer.id
     assert result.source == "via_note"
     assert result.note_count == 5
+
+
+def test_sync_history_model(db_session):
+    sync = SyncHistory(
+        entity_type="notes",
+        status="running",
+    )
+    db_session.add(sync)
+    db_session.commit()
+
+    result = db_session.query(SyncHistory).filter_by(entity_type="notes").first()
+    assert result is not None
+    assert result.status == "running"
+    assert result.started_at is not None
