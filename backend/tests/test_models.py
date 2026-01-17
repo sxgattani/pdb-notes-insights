@@ -3,9 +3,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import User, Team, Company, Customer, Component, Feature
+from app.models import User, Team, Company, Customer, Component, Feature, Note
 from decimal import Decimal
-from datetime import date
+from datetime import date, datetime, timezone
 
 
 @pytest.fixture
@@ -127,3 +127,36 @@ def test_feature_model_create(db_session):
     assert result.committed is True
     assert result.custom_fields["priority"] == "high"
     assert result.owner.name == "PM Alice"
+
+
+def test_note_model_create(db_session):
+    user = User(pb_id="pb_user_owner", name="Note Owner")
+    company = Company(pb_id="pb_company_note", name="Note Corp")
+    db_session.add_all([user, company])
+    db_session.commit()
+
+    customer = Customer(pb_id="pb_cust_note", name="Customer", company_id=company.id)
+    db_session.add(customer)
+    db_session.commit()
+
+    note = Note(
+        pb_id="pb_note_456",
+        title="Feature Request",
+        content="Please add dark mode",
+        type="simple",
+        source="intercom",
+        state="unprocessed",
+        owner_id=user.id,
+        customer_id=customer.id,
+        created_at=datetime.now(timezone.utc),
+        custom_fields={"sentiment": "positive"},
+    )
+    db_session.add(note)
+    db_session.commit()
+
+    result = db_session.query(Note).filter_by(pb_id="pb_note_456").first()
+    assert result is not None
+    assert result.title == "Feature Request"
+    assert result.state == "unprocessed"
+    assert result.customer.name == "Customer"
+    assert result.owner.name == "Note Owner"
