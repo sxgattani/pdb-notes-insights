@@ -3,7 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
-from app.models import User, Team, Company, Customer, Component, Feature, Note
+from app.models import User, Team, Company, Customer, Component, Feature, Note, NoteFeature, FeatureCustomer
 from decimal import Decimal
 from datetime import date, datetime, timezone
 
@@ -160,3 +160,52 @@ def test_note_model_create(db_session):
     assert result.state == "unprocessed"
     assert result.customer.name == "Customer"
     assert result.owner.name == "Note Owner"
+
+
+def test_note_feature_relationship(db_session):
+    user = User(pb_id="pb_user_nf", name="User NF")
+    db_session.add(user)
+    db_session.commit()
+
+    feature = Feature(pb_id="pb_feat_nf", name="Feature NF", owner_id=user.id)
+    note = Note(pb_id="pb_note_nf", title="Note NF", owner_id=user.id)
+    db_session.add_all([feature, note])
+    db_session.commit()
+
+    link = NoteFeature(note_id=note.id, feature_id=feature.id)
+    db_session.add(link)
+    db_session.commit()
+
+    result = db_session.query(NoteFeature).filter_by(note_id=note.id).first()
+    assert result is not None
+    assert result.feature_id == feature.id
+
+
+def test_feature_customer_relationship(db_session):
+    company = Company(pb_id="pb_comp_fc", name="Company FC")
+    db_session.add(company)
+    db_session.commit()
+
+    customer = Customer(pb_id="pb_cust_fc", name="Customer FC", company_id=company.id)
+    user = User(pb_id="pb_user_fc", name="User FC")
+    db_session.add_all([customer, user])
+    db_session.commit()
+
+    feature = Feature(pb_id="pb_feat_fc", name="Feature FC", owner_id=user.id)
+    db_session.add(feature)
+    db_session.commit()
+
+    link = FeatureCustomer(
+        feature_id=feature.id,
+        customer_id=customer.id,
+        source="via_note",
+        note_count=5,
+    )
+    db_session.add(link)
+    db_session.commit()
+
+    result = db_session.query(FeatureCustomer).filter_by(feature_id=feature.id).first()
+    assert result is not None
+    assert result.customer_id == customer.id
+    assert result.source == "via_note"
+    assert result.note_count == 5
