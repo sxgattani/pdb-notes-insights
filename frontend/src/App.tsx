@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { Dashboard } from './pages/Dashboard';
+import { NotesListPage } from './pages/NotesListPage';
+import { NoteDetailPage } from './pages/NoteDetailPage';
 
 const queryClient = new QueryClient();
 
@@ -19,6 +21,8 @@ function App() {
           <main className="max-w-7xl mx-auto">
             <Routes>
               <Route path="/" element={<Dashboard />} />
+              <Route path="/notes" element={<NotesListPage />} />
+              <Route path="/notes/:id" element={<NoteDetailPage />} />
             </Routes>
           </main>
         </div>
