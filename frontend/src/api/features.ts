@@ -1,4 +1,5 @@
-import { apiClient, PaginatedResponse } from './client';
+import { apiClient } from './client';
+import type { PaginatedResponse } from './client';
 
 export interface Feature {
   id: number;
