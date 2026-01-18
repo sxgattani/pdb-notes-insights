@@ -7,6 +7,7 @@ import { FeaturesListPage } from './pages/FeaturesListPage';
 import { FeatureDetailPage } from './pages/FeatureDetailPage';
 import { WorkloadPage } from './pages/WorkloadPage';
 import { SLAPage } from './pages/SLAPage';
+import { ExportsPage } from './pages/ExportsPage';
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ function AppContent() {
               <NavLink to="/features">Features</NavLink>
               <NavLink to="/workload">Workload</NavLink>
               <NavLink to="/sla">SLA</NavLink>
+              <NavLink to="/exports">Exports</NavLink>
             </div>
           </div>
         </div>
@@ -57,6 +59,7 @@ function AppContent() {
           <Route path="/features/:id" element={<FeatureDetailPage />} />
           <Route path="/workload" element={<WorkloadPage />} />
           <Route path="/sla" element={<SLAPage />} />
+          <Route path="/exports" element={<ExportsPage />} />
         </Routes>
       </main>
     </div>
