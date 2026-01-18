@@ -8,8 +8,10 @@ from app.models.note import Note
 from app.models.note_feature import NoteFeature
 from app.models.feature_customer import FeatureCustomer
 from app.models.sync_history import SyncHistory
+from app.models.export import Export
 
 __all__ = [
     "User", "Team", "Company", "Customer", "Component",
-    "Feature", "Note", "NoteFeature", "FeatureCustomer", "SyncHistory"
+    "Feature", "Note", "NoteFeature", "FeatureCustomer", "SyncHistory",
+    "Export"
 ]
