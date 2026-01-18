@@ -1,5 +1,6 @@
 # Environment files
 .env
 
-# Exports directory
-exports/
+# Exports data output directory (not app/services/exports code)
+/exports/
+/backend/exports/

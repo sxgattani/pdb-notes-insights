@@ -34,5 +34,5 @@ wheels/
 *.swp
 *.swo
 
-# Exports
-exports/
+# Exports (data output directory)
+/exports/
