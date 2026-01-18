@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Literal
 
+from app.config import get_settings
 from app.database import get_db
 from app.models import Export
 from app.services.exports import JSONExportService, PDFExportService
@@ -15,10 +16,10 @@ router = APIRouter(prefix="/exports", tags=["exports"])
 
 class ExportRequest(BaseModel):
     report_type: Literal["notes_summary", "features_summary", "pm_performance", "sla_report"]
-    format: Literal["pdf", "json"]
+    export_format: Literal["pdf", "json"]
 
 
-def _generate_export(export_id: int, report_type: str, format: str, db: Session):
+def _generate_export(export_id: int, report_type: str, export_format: str, db: Session):
     """Background task to generate the export file."""
     # Get fresh db session for background task
     from app.database import SessionLocal
@@ -31,7 +32,7 @@ def _generate_export(export_id: int, report_type: str, format: str, db: Session)
             return
 
         # Select the appropriate service based on format
-        if format == "json":
+        if export_format == "json":
             service = JSONExportService(db)
         else:
             service = PDFExportService(db)
@@ -63,7 +64,7 @@ def trigger_export(
     # Create a pending export record
     export = Export(
         report_type=request.report_type,
-        format=request.format,
+        format=request.export_format,
         filename="",  # Will be set when generation completes
         file_path="",  # Will be set when generation completes
         status="pending",
@@ -78,14 +79,14 @@ def trigger_export(
         _generate_export,
         export.id,
         request.report_type,
-        request.format,
+        request.export_format,
         db
     )
 
     return {
         "id": export.id,
         "status": "pending",
-        "message": f"Export '{request.report_type}' in {request.format} format has been queued"
+        "message": f"Export '{request.report_type}' in {request.export_format} format has been queued"
     }
 
 
@@ -167,8 +168,15 @@ def download_export(export_id: int, db: Session = Depends(get_db)):
             detail=f"Export is not ready for download. Current status: {export.status}"
         )
 
+    # Validate file is within exports directory (path traversal protection)
+    settings = get_settings()
+    export_base = Path(settings.export_path).resolve()
+    file_path = Path(export.file_path).resolve()
+
+    if not str(file_path).startswith(str(export_base)):
+        raise HTTPException(status_code=400, detail="Invalid export path")
+
     # Check if file exists
-    file_path = Path(export.file_path)
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Export file not found on disk")
 
