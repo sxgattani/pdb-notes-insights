@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.services.sync import SyncOrchestrator
 from app.models import SyncHistory
+from app.api.dependencies import require_auth
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
@@ -11,6 +12,7 @@ router = APIRouter(prefix="/sync", tags=["sync"])
 @router.post("/trigger")
 async def trigger_sync(
     background_tasks: BackgroundTasks,
+    username: str = Depends(require_auth),
     db: Session = Depends(get_db),
 ):
     """Trigger an on-demand sync."""
