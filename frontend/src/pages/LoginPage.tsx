@@ -1,13 +1,17 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { authApi } from '../api/auth';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -15,8 +19,8 @@ export function LoginPage() {
     setLoading(true);
 
     try {
-      await authApi.login({ username, password });
-      navigate('/');
+      await login(username, password);
+      navigate(from, { replace: true });
     } catch (err: unknown) {
       const errorMessage = err instanceof Error ? err.message :
         (err as any)?.response?.data?.detail || 'Login failed';
