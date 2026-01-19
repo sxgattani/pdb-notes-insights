@@ -20,11 +20,13 @@ function StatCard({
   stat,
   periodDays,
   suffix,
+  onClick,
 }: {
   title: string;
   stat: StatWithChange | FloatStatWithChange;
   periodDays: number;
   suffix?: string;
+  onClick?: () => void;
 }) {
   const hasChange = stat.change !== null;
   const isPositive = hasChange && stat.change! > 0;
@@ -36,7 +38,10 @@ function StatCard({
   const negativeColor = isResponseTime ? 'text-green-600' : 'text-green-600';
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div
+      className={`bg-white rounded-lg shadow p-6 ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`}
+      onClick={onClick}
+    >
       <h3 className="text-sm font-medium text-gray-600">{title}</h3>
       <div className="mt-2 flex items-baseline space-x-3">
         <span className="text-3xl font-bold text-gray-900">
@@ -306,15 +311,36 @@ export function NotesInsightsPage() {
         <div className="space-y-6">
           {/* Summary Stats */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-            <StatCard title="Created Notes" stat={insightsData.summary.created} periodDays={days} />
-            <StatCard title="Processed Notes" stat={insightsData.summary.processed} periodDays={days} />
-            <StatCard title="Unprocessed Notes" stat={insightsData.summary.unprocessed} periodDays={days} />
-            <StatCard title="Unassigned Notes" stat={insightsData.summary.unassigned} periodDays={days} />
+            <StatCard
+              title="Created Notes"
+              stat={insightsData.summary.created}
+              periodDays={days}
+              onClick={() => navigate('/notes')}
+            />
+            <StatCard
+              title="Processed Notes"
+              stat={insightsData.summary.processed}
+              periodDays={days}
+              onClick={() => navigate('/notes?state=processed')}
+            />
+            <StatCard
+              title="Unprocessed Notes"
+              stat={insightsData.summary.unprocessed}
+              periodDays={days}
+              onClick={() => navigate('/notes?state=unprocessed')}
+            />
+            <StatCard
+              title="Unassigned Notes"
+              stat={insightsData.summary.unassigned}
+              periodDays={days}
+              onClick={() => navigate('/notes?unassigned=true')}
+            />
             <StatCard
               title="Avg Response Time"
               stat={insightsData.summary.avg_response_time}
               periodDays={days}
               suffix="days"
+              onClick={() => navigate('/notes?state=processed')}
             />
           </div>
 

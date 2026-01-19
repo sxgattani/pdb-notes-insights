@@ -23,6 +23,7 @@ def list_notes(
     limit: int = Query(50, ge=1, le=100),
     state: Optional[str] = None,
     owner_id: Optional[int] = None,
+    unassigned: Optional[bool] = None,
     creator_id: Optional[int] = None,
     company_id: Optional[int] = None,
     created_after: Optional[str] = None,
@@ -40,7 +41,9 @@ def list_notes(
     # Filters
     if state:
         query = query.filter(Note.state == state)
-    if owner_id:
+    if unassigned:
+        query = query.filter(Note.owner_id.is_(None))
+    elif owner_id:
         query = query.filter(Note.owner_id == owner_id)
     if creator_id:
         query = query.filter(Note.created_by_id == creator_id)
@@ -99,7 +102,9 @@ def list_notes(
         # Apply the same filters to the count query
         if state:
             count_query = count_query.filter(Note.state == state)
-        if owner_id:
+        if unassigned:
+            count_query = count_query.filter(Note.owner_id.is_(None))
+        elif owner_id:
             count_query = count_query.filter(Note.owner_id == owner_id)
         if creator_id:
             count_query = count_query.filter(Note.created_by_id == creator_id)

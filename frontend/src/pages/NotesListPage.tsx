@@ -14,6 +14,7 @@ export function NotesListPage() {
   const page = parseInt(searchParams.get('page') || '1', 10);
   const state = searchParams.get('state') || '';
   const ownerId = searchParams.get('owner_id') || '';
+  const unassigned = searchParams.get('unassigned') === 'true';
   const creatorId = searchParams.get('creator_id') || '';
   const companyId = searchParams.get('company_id') || '';
   const createdAfter = searchParams.get('created_after') || '';
@@ -36,7 +37,8 @@ export function NotesListPage() {
     sort,
     order,
     ...(state && { state }),
-    ...(ownerId && { owner_id: parseInt(ownerId, 10) }),
+    ...(unassigned && { unassigned: true }),
+    ...(!unassigned && ownerId && { owner_id: parseInt(ownerId, 10) }),
     ...(creatorId && { creator_id: parseInt(creatorId, 10) }),
     ...(companyId && { company_id: parseInt(companyId, 10) }),
     ...(createdAfter && { created_after: createdAfter }),
@@ -75,7 +77,7 @@ export function NotesListPage() {
     setSearchParams(new URLSearchParams({ sort: 'created_at', order: 'desc' }));
   };
 
-  const hasActiveFilters = state || ownerId || creatorId || companyId || createdAfter || createdBefore || updatedAfter || updatedBefore;
+  const hasActiveFilters = state || ownerId || unassigned || creatorId || companyId || createdAfter || createdBefore || updatedAfter || updatedBefore;
 
   return (
     <div className="p-8">

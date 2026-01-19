@@ -68,6 +68,7 @@ export type NotesParams = {
   limit?: number;
   state?: string;
   owner_id?: number;
+  unassigned?: boolean;
   creator_id?: number;
   company_id?: number;
   created_after?: string;
