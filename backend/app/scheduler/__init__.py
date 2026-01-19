@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.memory import MemoryJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor
@@ -8,7 +9,7 @@ from app.config import get_settings
 logger = logging.getLogger(__name__)
 
 # Global scheduler instance
-scheduler: AsyncIOScheduler | None = None
+scheduler: Optional[AsyncIOScheduler] = None
 
 
 def get_scheduler() -> AsyncIOScheduler:

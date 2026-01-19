@@ -5,9 +5,7 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Dashboard } from './pages/Dashboard';
 import { NotesListPage } from './pages/NotesListPage';
 import { NoteDetailPage } from './pages/NoteDetailPage';
-import { FeaturesListPage } from './pages/FeaturesListPage';
-import { FeatureDetailPage } from './pages/FeatureDetailPage';
-import { WorkloadPage } from './pages/WorkloadPage';
+import { NotesInsightsPage } from './pages/NotesInsightsPage';
 import { SLAPage } from './pages/SLAPage';
 import { ExportsPage } from './pages/ExportsPage';
 import { LoginPage } from './pages/LoginPage';
@@ -62,8 +60,7 @@ function AppContent() {
             <div className="flex space-x-6">
               <NavLink to="/">Dashboard</NavLink>
               <NavLink to="/notes">Notes</NavLink>
-              <NavLink to="/features">Features</NavLink>
-              <NavLink to="/workload">Workload</NavLink>
+              <NavLink to="/insights">Insights</NavLink>
               <NavLink to="/sla">SLA</NavLink>
               <NavLink to="/exports">Exports</NavLink>
               <LogoutButton />
@@ -76,9 +73,7 @@ function AppContent() {
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/notes" element={<ProtectedRoute><NotesListPage /></ProtectedRoute>} />
           <Route path="/notes/:id" element={<ProtectedRoute><NoteDetailPage /></ProtectedRoute>} />
-          <Route path="/features" element={<ProtectedRoute><FeaturesListPage /></ProtectedRoute>} />
-          <Route path="/features/:id" element={<ProtectedRoute><FeatureDetailPage /></ProtectedRoute>} />
-          <Route path="/workload" element={<ProtectedRoute><WorkloadPage /></ProtectedRoute>} />
+          <Route path="/insights" element={<ProtectedRoute><NotesInsightsPage /></ProtectedRoute>} />
           <Route path="/sla" element={<ProtectedRoute><SLAPage /></ProtectedRoute>} />
           <Route path="/exports" element={<ProtectedRoute><ExportsPage /></ProtectedRoute>} />
         </Routes>

@@ -1,12 +1,20 @@
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database import get_db
-from app.models import Note, User, Customer, NoteFeature, Feature
+from app.models import Note, Member, Company, NoteFeature, Feature, NoteComment
 
 router = APIRouter(prefix="/notes", tags=["notes"])
+
+
+def _calculate_response_time(note: Note) -> Optional[float]:
+    """Calculate response time in days (processed_at - created_at)."""
+    if note.processed_at and note.created_at:
+        delta = note.processed_at - note.created_at
+        return round(delta.total_seconds() / 86400, 1)
+    return None
 
 
 @router.get("")
@@ -15,20 +23,39 @@ def list_notes(
     limit: int = Query(50, ge=1, le=100),
     state: Optional[str] = None,
     owner_id: Optional[int] = None,
-    customer_id: Optional[int] = None,
+    creator_id: Optional[int] = None,
+    company_id: Optional[int] = None,
+    created_after: Optional[str] = None,
+    created_before: Optional[str] = None,
+    updated_after: Optional[str] = None,
+    updated_before: Optional[str] = None,
+    group_by: Optional[str] = None,
     sort: str = "created_at",
     order: str = "desc",
     db: Session = Depends(get_db),
 ):
-    """List notes with filtering and pagination."""
+    """List notes with filtering, grouping, and pagination."""
     query = db.query(Note)
 
+    # Filters
     if state:
         query = query.filter(Note.state == state)
     if owner_id:
         query = query.filter(Note.owner_id == owner_id)
-    if customer_id:
-        query = query.filter(Note.customer_id == customer_id)
+    if creator_id:
+        query = query.filter(Note.created_by_id == creator_id)
+    if company_id:
+        query = query.filter(Note.company_id == company_id)
+
+    # Date range filters
+    if created_after:
+        query = query.filter(Note.created_at >= created_after)
+    if created_before:
+        query = query.filter(Note.created_at <= created_before)
+    if updated_after:
+        query = query.filter(Note.updated_at >= updated_after)
+    if updated_before:
+        query = query.filter(Note.updated_at <= updated_before)
 
     # Sorting
     sort_col = getattr(Note, sort, Note.created_at)
@@ -41,8 +68,30 @@ def list_notes(
     total = query.count()
     notes = query.offset((page - 1) * limit).limit(limit).all()
 
+    # Convert to dicts with relationships
+    notes_data = [_note_to_dict(n, db) for n in notes]
+
+    # Group if requested
+    grouped_data = None
+    if group_by and group_by in ['owner', 'creator', 'company']:
+        grouped_data = {}
+        for note in notes_data:
+            if group_by == 'owner':
+                key = note.get('owner', {}).get('name', 'Unassigned') if note.get('owner') else 'Unassigned'
+            elif group_by == 'creator':
+                key = note.get('creator', {}).get('name', 'Unknown') if note.get('creator') else 'Unknown'
+            elif group_by == 'company':
+                key = note.get('company', {}).get('name', 'No Company') if note.get('company') else 'No Company'
+            else:
+                key = 'Other'
+
+            if key not in grouped_data:
+                grouped_data[key] = []
+            grouped_data[key].append(note)
+
     return {
-        "data": [_note_to_dict(n) for n in notes],
+        "data": notes_data,
+        "grouped_data": grouped_data,
         "pagination": {
             "page": page,
             "limit": limit,
@@ -59,26 +108,68 @@ def get_notes_stats(db: Session = Depends(get_db)):
     processed = db.query(Note).filter(Note.state == "processed").count()
     unprocessed = db.query(Note).filter(Note.state == "unprocessed").count()
 
-    # Notes by type
-    by_type = (
-        db.query(Note.type, func.count(Note.id))
-        .group_by(Note.type)
+    # Notes by source_origin
+    by_source = (
+        db.query(Note.source_origin, func.count(Note.id))
+        .group_by(Note.source_origin)
         .all()
     )
 
-    # Notes by source
-    by_source = (
-        db.query(Note.source, func.count(Note.id))
-        .group_by(Note.source)
-        .all()
-    )
+    # Calculate average response time for processed notes
+    processed_notes = db.query(Note).filter(
+        Note.state == "processed",
+        Note.processed_at.isnot(None),
+        Note.created_at.isnot(None)
+    ).all()
+
+    response_times = [_calculate_response_time(n) for n in processed_notes]
+    response_times = [r for r in response_times if r is not None]
+    avg_response_time = round(sum(response_times) / len(response_times), 1) if response_times else None
 
     return {
         "total": total,
         "processed": processed,
         "unprocessed": unprocessed,
-        "by_type": {t: c for t, c in by_type if t},
+        "avg_response_time_days": avg_response_time,
         "by_source": {s: c for s, c in by_source if s},
+    }
+
+
+@router.get("/filter-options")
+def get_filter_options(db: Session = Depends(get_db)):
+    """Get available filter options (members, companies, states)."""
+    # Get members who are owners
+    owners = (
+        db.query(Member.id, Member.name, Member.email)
+        .join(Note, Note.owner_id == Member.id)
+        .distinct()
+        .all()
+    )
+    # Get members who are creators
+    creators = (
+        db.query(Member.id, Member.name, Member.email)
+        .join(Note, Note.created_by_id == Member.id)
+        .distinct()
+        .all()
+    )
+
+    # Get companies with notes
+    companies = (
+        db.query(Company.id, Company.name)
+        .join(Note, Note.company_id == Company.id)
+        .distinct()
+        .order_by(Company.name)
+        .all()
+    )
+
+    # Get distinct states
+    states = db.query(Note.state).distinct().all()
+
+    return {
+        "owners": [{"id": u.id, "name": u.name or u.email} for u in owners],
+        "creators": [{"id": u.id, "name": u.name or u.email} for u in creators],
+        "companies": [{"id": c.id, "name": c.name} for c in companies],
+        "states": [s[0] for s in states if s[0]],
     }
 
 
@@ -88,37 +179,100 @@ def get_note(note_id: int, db: Session = Depends(get_db)):
     note = db.query(Note).filter(Note.id == note_id).first()
 
     if not note:
-        return {"error": "Note not found"}, 404
+        raise HTTPException(status_code=404, detail="Note not found")
 
     # Get linked features
     feature_links = (
-        db.query(Feature)
+        db.query(Feature, NoteFeature.importance)
         .join(NoteFeature)
         .filter(NoteFeature.note_id == note_id)
         .all()
     )
 
-    result = _note_to_dict(note)
+    # Get comments
+    comments = (
+        db.query(NoteComment)
+        .filter(NoteComment.note_id == note_id)
+        .order_by(NoteComment.timestamp.desc())
+        .limit(5)
+        .all()
+    )
+
+    result = _note_to_dict(note, db)
     result["features"] = [
-        {"id": f.id, "name": f.name, "product_area": f.product_area}
-        for f in feature_links
+        {
+            "id": f.id,
+            "pb_id": f.pb_id,
+            "name": f.name,
+            "display_url": f.display_url,
+            "importance": importance
+        }
+        for f, importance in feature_links
+    ]
+    result["comments"] = [
+        {
+            "id": c.id,
+            "content": c.content,
+            "timestamp": c.timestamp.isoformat() if c.timestamp else None,
+            "member": _member_to_dict(db.query(Member).filter(Member.id == c.member_id).first()) if c.member_id else None
+        }
+        for c in comments
     ]
 
     return result
 
 
-def _note_to_dict(note: Note) -> dict:
-    """Convert Note model to dict."""
+def _member_to_dict(member: Optional[Member]) -> Optional[dict]:
+    """Convert Member model to dict."""
+    if not member:
+        return None
     return {
+        "id": member.id,
+        "name": member.name,
+        "email": member.email
+    }
+
+
+def _note_to_dict(note: Note, db: Session = None) -> dict:
+    """Convert Note model to dict with relationships."""
+    result = {
         "id": note.id,
         "pb_id": note.pb_id,
         "title": note.title,
         "content": note.content,
-        "type": note.type,
-        "source": note.source,
         "state": note.state,
+        "source_origin": note.source_origin,
+        "display_url": note.display_url,
+        "external_display_url": note.external_display_url,
+        "tags": note.tags or [],
+        "followers_count": note.followers_count or 0,
         "created_at": note.created_at.isoformat() if note.created_at else None,
+        "updated_at": note.updated_at.isoformat() if note.updated_at else None,
         "processed_at": note.processed_at.isoformat() if note.processed_at else None,
+        "response_time_days": _calculate_response_time(note),
         "owner_id": note.owner_id,
-        "customer_id": note.customer_id,
+        "created_by_id": note.created_by_id,
+        "company_id": note.company_id,
     }
+
+    # Include relationships if db session provided
+    if db:
+        if note.owner_id:
+            owner = db.query(Member).filter(Member.id == note.owner_id).first()
+            result["owner"] = _member_to_dict(owner)
+        else:
+            result["owner"] = None
+
+        if note.created_by_id:
+            creator = db.query(Member).filter(Member.id == note.created_by_id).first()
+            result["creator"] = _member_to_dict(creator)
+        else:
+            result["creator"] = None
+
+        if note.company_id:
+            company = db.query(Company).filter(Company.id == note.company_id).first()
+            result["company"] = {"id": company.id, "name": company.name} if company else None
+        else:
+            result["company"] = None
+
+    return result

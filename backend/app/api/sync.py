@@ -1,26 +1,38 @@
+import asyncio
+import logging
 from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.database import get_db
+from app.database import get_db, SessionLocal
 from app.services.sync import SyncOrchestrator
 from app.models import SyncHistory
 from app.api.dependencies import require_auth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/sync", tags=["sync"])
 
 
 @router.post("/trigger")
 async def trigger_sync(
-    background_tasks: BackgroundTasks,
     username: str = Depends(require_auth),
-    db: Session = Depends(get_db),
 ):
     """Trigger an on-demand sync."""
     async def run_sync():
-        orchestrator = SyncOrchestrator(db)
-        await orchestrator.run_full_sync()
+        # Create a fresh database session for the background task
+        db = SessionLocal()
+        try:
+            logger.info("Starting sync...")
+            orchestrator = SyncOrchestrator(db)
+            result = await orchestrator.run_full_sync()
+            logger.info(f"Sync completed: {result}")
+        except Exception as e:
+            logger.exception(f"Sync failed: {e}")
+        finally:
+            db.close()
 
-    background_tasks.add_task(run_sync)
+    # Use asyncio.create_task for proper async handling
+    asyncio.create_task(run_sync())
     return {"message": "Sync triggered", "status": "running"}
 
 

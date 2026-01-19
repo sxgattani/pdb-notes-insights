@@ -1,3 +1,36 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Prose styles for HTML content */
+.prose p {
+  margin-bottom: 1em;
+}
+
+.prose strong {
+  font-weight: 600;
+}
+
+.prose br {
+  display: block;
+  margin-top: 0.5em;
+  content: "";
+}
+
+.prose ul, .prose ol {
+  margin-left: 1.5em;
+  margin-bottom: 1em;
+}
+
+.prose li {
+  margin-bottom: 0.25em;
+}
+
+.prose a {
+  color: #2563eb;
+  text-decoration: underline;
+}
+
+.prose a:hover {
+  color: #1d4ed8;
+}

@@ -7,9 +7,10 @@ export const apiClient = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
-export interface PaginatedResponse<T> {
+export type PaginatedResponse<T> = {
   data: T[];
   pagination: {
     page: number;
@@ -17,4 +18,4 @@ export interface PaginatedResponse<T> {
     total: number;
     pages: number;
   };
-}
+};

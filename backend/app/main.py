@@ -8,6 +8,8 @@ from app.api import sync, notes, features, reports, exports, scheduler, auth
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.scheduler.sync_job import register_sync_job
 from app.scheduler.export_job import register_export_job
+from app.database import engine, Base
+from app import models  # noqa: F401 - imports models to register them
 
 settings = get_settings()
 
@@ -15,6 +17,9 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifecycle - startup and shutdown events."""
+    # Create database tables
+    Base.metadata.create_all(bind=engine)
+
     # Startup
     register_sync_job()
     register_export_job()
@@ -35,7 +40,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

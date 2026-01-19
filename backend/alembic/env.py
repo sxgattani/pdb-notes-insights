@@ -8,8 +8,8 @@ from alembic import context
 from app.config import get_settings
 from app.database import Base
 from app.models import (
-    User, Team, Company, Customer, Component,
-    Feature, Note, NoteFeature, FeatureCustomer, SyncHistory, Export
+    Member, Company, Feature, Note,
+    NoteFeature, NoteComment, SyncHistory, Export
 )
 
 config = context.config

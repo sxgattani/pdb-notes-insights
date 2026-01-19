@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { notesApi } from '../api/notes';
@@ -7,12 +8,27 @@ import { Pagination } from '../components/Pagination';
 
 export function NotesListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showFilters, setShowFilters] = useState(false);
 
   // Parse URL params
   const page = parseInt(searchParams.get('page') || '1', 10);
   const state = searchParams.get('state') || '';
+  const ownerId = searchParams.get('owner_id') || '';
+  const creatorId = searchParams.get('creator_id') || '';
+  const companyId = searchParams.get('company_id') || '';
+  const createdAfter = searchParams.get('created_after') || '';
+  const createdBefore = searchParams.get('created_before') || '';
+  const updatedAfter = searchParams.get('updated_after') || '';
+  const updatedBefore = searchParams.get('updated_before') || '';
+  const groupBy = searchParams.get('group_by') || '';
   const sort = searchParams.get('sort') || 'created_at';
   const order = (searchParams.get('order') || 'desc') as 'asc' | 'desc';
+
+  // Fetch filter options
+  const { data: filterOptions } = useQuery({
+    queryKey: ['notes', 'filter-options'],
+    queryFn: () => notesApi.getFilterOptions().then((r) => r.data),
+  });
 
   const params: NotesParams = {
     page,
@@ -20,6 +36,14 @@ export function NotesListPage() {
     sort,
     order,
     ...(state && { state }),
+    ...(ownerId && { owner_id: parseInt(ownerId, 10) }),
+    ...(creatorId && { creator_id: parseInt(creatorId, 10) }),
+    ...(companyId && { company_id: parseInt(companyId, 10) }),
+    ...(createdAfter && { created_after: createdAfter }),
+    ...(createdBefore && { created_before: createdBefore }),
+    ...(updatedAfter && { updated_after: updatedAfter }),
+    ...(updatedBefore && { updated_before: updatedBefore }),
+    ...(groupBy && { group_by: groupBy as 'owner' | 'creator' | 'company' }),
   };
 
   const { data, isLoading } = useQuery({
@@ -47,20 +71,38 @@ export function NotesListPage() {
     updateParams({ page: String(newPage) });
   };
 
+  const clearFilters = () => {
+    setSearchParams(new URLSearchParams({ sort: 'created_at', order: 'desc' }));
+  };
+
+  const hasActiveFilters = state || ownerId || creatorId || companyId || createdAfter || createdBefore || updatedAfter || updatedBefore;
+
   return (
     <div className="p-8">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold text-gray-900">Notes</h1>
         <div className="flex items-center space-x-4">
-          {/* State Filter */}
+          {/* Toggle Filters Button */}
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`px-3 py-2 text-sm border rounded flex items-center space-x-2 ${hasActiveFilters ? 'bg-blue-50 border-blue-300 text-blue-700' : 'hover:bg-gray-50'}`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span>Filters{hasActiveFilters ? ' (Active)' : ''}</span>
+          </button>
+
+          {/* Group By */}
           <select
-            value={state}
-            onChange={(e) => updateParams({ state: e.target.value || undefined })}
+            value={groupBy}
+            onChange={(e) => updateParams({ group_by: e.target.value || undefined })}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="">All States</option>
-            <option value="unprocessed">Unprocessed</option>
-            <option value="processed">Processed</option>
+            <option value="">No Grouping</option>
+            <option value="owner">Group by Owner</option>
+            <option value="creator">Group by Creator</option>
+            <option value="company">Group by Company</option>
           </select>
 
           {/* Sort Order */}
@@ -72,17 +114,147 @@ export function NotesListPage() {
             }}
             className="border rounded px-3 py-2 text-sm"
           >
-            <option value="created_at-desc">Newest First</option>
-            <option value="created_at-asc">Oldest First</option>
-            <option value="title-asc">Title A-Z</option>
-            <option value="title-desc">Title Z-A</option>
+            <option value="created_at-desc">Created: Newest</option>
+            <option value="created_at-asc">Created: Oldest</option>
+            <option value="updated_at-desc">Updated: Newest</option>
+            <option value="updated_at-asc">Updated: Oldest</option>
           </select>
         </div>
       </div>
 
-      <NotesTable notes={data?.data || []} isLoading={isLoading} />
+      {/* Filter Panel */}
+      {showFilters && (
+        <div className="bg-white rounded-lg shadow p-4 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-medium text-gray-700">Filters</h3>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Clear all filters
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* State Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
+              <select
+                value={state}
+                onChange={(e) => updateParams({ state: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All States</option>
+                {filterOptions?.states.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            </div>
 
+            {/* Owner Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Owner</label>
+              <select
+                value={ownerId}
+                onChange={(e) => updateParams({ owner_id: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Owners</option>
+                {filterOptions?.owners.map((o) => (
+                  <option key={o.id} value={o.id}>{o.name || `User ${o.id}`}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Creator Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Creator</label>
+              <select
+                value={creatorId}
+                onChange={(e) => updateParams({ creator_id: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Creators</option>
+                {filterOptions?.creators.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name || `User ${c.id}`}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Company Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Company</label>
+              <select
+                value={companyId}
+                onChange={(e) => updateParams({ company_id: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Companies</option>
+                {filterOptions?.companies.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name || `Company ${c.id}`}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Created Date Range */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Created After</label>
+              <input
+                type="date"
+                value={createdAfter}
+                onChange={(e) => updateParams({ created_after: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Created Before</label>
+              <input
+                type="date"
+                value={createdBefore}
+                onChange={(e) => updateParams({ created_before: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+
+            {/* Updated Date Range */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Updated After</label>
+              <input
+                type="date"
+                value={updatedAfter}
+                onChange={(e) => updateParams({ updated_after: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Updated Before</label>
+              <input
+                type="date"
+                value={updatedBefore}
+                onChange={(e) => updateParams({ updated_before: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Results Count */}
       {data && (
+        <div className="text-sm text-gray-500 mb-4">
+          Showing {data.data.length} of {data.pagination.total} notes
+        </div>
+      )}
+
+      <NotesTable
+        notes={data?.data || []}
+        isLoading={isLoading}
+        groupedData={data?.grouped_data}
+        groupBy={groupBy}
+      />
+
+      {data && !groupBy && (
         <Pagination
           page={data.pagination.page}
           totalPages={data.pagination.pages}

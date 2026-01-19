@@ -1,14 +1,14 @@
 import { apiClient } from './client';
 
-export interface LoginRequest {
+export type LoginRequest = {
   username: string;
   password: string;
-}
+};
 
-export interface User {
+export type User = {
   username: string;
   authenticated: boolean;
-}
+};
 
 export const authApi = {
   login: (data: LoginRequest) =>

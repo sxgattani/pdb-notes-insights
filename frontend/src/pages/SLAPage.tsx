@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { reportsApi, SLANote } from '../api/reports';
+import { reportsApi } from '../api/reports';
+import type { SLANote, SLAByOwner } from '../api/reports';
 
 function getComplianceColor(rate: number): string {
   if (rate >= 90) return 'text-green-600';
@@ -33,6 +34,7 @@ export function SLAPage() {
   const summary = data?.summary;
   const breachedNotes = data?.breached_notes || [];
   const atRiskNotes = data?.at_risk_notes || [];
+  const byOwner = data?.by_owner || [];
   const slaDays = data?.sla_days || 5;
 
   // Sort by days_old descending (oldest first)
@@ -41,6 +43,10 @@ export function SLAPage() {
 
   const handleRowClick = (noteId: number) => {
     navigate(`/notes/${noteId}`);
+  };
+
+  const handleOwnerClick = (ownerId: number) => {
+    navigate(`/notes?owner_id=${ownerId}&state=unprocessed`);
   };
 
   const renderNotesTable = (notes: SLANote[], type: 'breached' | 'at-risk') => {
@@ -94,6 +100,69 @@ export function SLAPage() {
     );
   };
 
+  const renderOwnerTable = (owners: SLAByOwner[]) => {
+    return (
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Breached</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">At Risk</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">On Track</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Compliance</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {owners.map((owner) => (
+              <tr
+                key={owner.id}
+                onClick={() => handleOwnerClick(owner.id)}
+                className="hover:bg-gray-50 cursor-pointer"
+              >
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-sm font-medium mr-3">
+                      {owner.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">{owner.name}</span>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                  {owner.breached > 0 ? (
+                    <span className="text-red-600 font-medium">{owner.breached}</span>
+                  ) : (
+                    <span className="text-gray-400">0</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                  {owner.at_risk > 0 ? (
+                    <span className="text-yellow-600 font-medium">{owner.at_risk}</span>
+                  ) : (
+                    <span className="text-gray-400">0</span>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                  <span className="text-green-600">{owner.on_track}</span>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                  <span className={`font-medium ${getComplianceColor(owner.compliance_rate)}`}>
+                    {owner.compliance_rate.toFixed(1)}%
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {owners.length === 0 && (
+          <div className="p-8 text-center text-gray-500">
+            No owner data available
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="p-8">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">SLA Compliance</h1>
@@ -118,6 +187,14 @@ export function SLAPage() {
           <h3 className="text-sm font-medium text-gray-500">On-Track Notes</h3>
           <p className="mt-2 text-3xl font-semibold text-green-600">{summary?.on_track || 0}</p>
         </div>
+      </div>
+
+      {/* SLA by Owner */}
+      <div className="mb-8">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          SLA by Owner
+        </h2>
+        {renderOwnerTable(byOwner)}
       </div>
 
       {/* Breached Notes Table */}

@@ -35,6 +35,11 @@ def _generate_export(export_id: int, report_type: str, export_format: str, db: S
         if export_format == "json":
             service = JSONExportService(db)
         else:
+            if PDFExportService is None:
+                export.status = "failed"
+                export.error_message = "PDF export not available - missing system dependencies"
+                db.commit()
+                return
             service = PDFExportService(db)
 
         # Delete the pending export record since service will create its own

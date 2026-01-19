@@ -13,24 +13,28 @@ class Note(Base):
     pb_id = Column(String, unique=True, nullable=False, index=True)
     title = Column(String)
     content = Column(Text)
-    type = Column(String)  # simple, conversation, opportunity
-    source = Column(String)
     state = Column(String, index=True)  # processed, unprocessed
-    processed_at = Column(DateTime(timezone=True))
-    created_at = Column(DateTime(timezone=True))
+    source_origin = Column(String, index=True)  # feature_request, etc.
+    display_url = Column(String)  # link to ProductBoard
+    external_display_url = Column(String)  # external link if any
+    tags = Column(JSON().with_variant(JSONB, "postgresql"))  # array of tags
+    followers_count = Column(Integer, default=0)  # number of followers
+
+    created_at = Column(DateTime(timezone=True), index=True)
     updated_at = Column(DateTime(timezone=True))
-    creator_id = Column(Integer, ForeignKey("users.id"), index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), index=True)
-    team_id = Column(Integer, ForeignKey("teams.id"), index=True)
-    customer_id = Column(Integer, ForeignKey("customers.id"), index=True)
-
-    # Extensibility
-    custom_fields = Column(JSON().with_variant(JSONB, "postgresql"))
-
+    processed_at = Column(DateTime(timezone=True))  # set when state first becomes 'processed'
+    enriched_at = Column(DateTime(timezone=True))  # when full details were fetched
     synced_at = Column(DateTime(timezone=True), server_default=func.now())
 
+    # Foreign keys
+    owner_id = Column(Integer, ForeignKey("members.id"), index=True)
+    created_by_id = Column(Integer, ForeignKey("members.id"), index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), index=True)
+    company_pb_id = Column(String, index=True)  # Store PB ID for relinking
+
     # Relationships
-    creator = relationship("User", foreign_keys=[creator_id])
-    owner = relationship("User", foreign_keys=[owner_id])
-    team = relationship("Team")
-    customer = relationship("Customer")
+    owner = relationship("Member", foreign_keys=[owner_id])
+    created_by = relationship("Member", foreign_keys=[created_by_id])
+    company = relationship("Company")
+    features = relationship("Feature", secondary="note_features", back_populates="notes")
+    comments = relationship("NoteComment", back_populates="note", order_by="desc(NoteComment.timestamp)")

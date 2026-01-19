@@ -4,7 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # Database
-    database_url: str = "postgresql://postgres:postgres@localhost:5432/pdb_insights"
+    database_url: str = "sqlite:///./pdb_insights.db"
 
     # ProductBoard API
     productboard_api_token: str = ""

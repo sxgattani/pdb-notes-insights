@@ -1,6 +1,6 @@
 import { apiClient } from './client';
 
-export interface Export {
+export type Export = {
   id: number;
   report_type: string;
   format: string;
@@ -10,12 +10,12 @@ export interface Export {
   created_at: string;
   completed_at: string | null;
   error_message: string | null;
-}
+};
 
-export interface ExportRequest {
+export type ExportRequest = {
   report_type: 'notes_summary' | 'features_summary' | 'pm_performance' | 'sla_report';
   export_format: 'pdf' | 'json';
-}
+};
 
 export const exportsApi = {
   list: (limit = 50, offset = 0) =>

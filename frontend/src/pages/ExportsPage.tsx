@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { exportsApi, Export, ExportRequest } from '../api/exports';
+import { exportsApi } from '../api/exports';
+import type { Export, ExportRequest } from '../api/exports';
 
 const REPORT_TYPES: { value: ExportRequest['report_type']; label: string }[] = [
   { value: 'notes_summary', label: 'Notes Summary' },

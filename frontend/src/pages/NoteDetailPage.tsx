@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { notesApi } from '../api/notes';
 
@@ -53,12 +53,38 @@ export function NoteDetailPage() {
           ← Back to notes
         </button>
         <div className="flex items-start justify-between">
-          <h1 className="text-2xl font-bold text-gray-900">
-            {note.title || '(No title)'}
-          </h1>
-          <span className={`px-3 py-1 rounded-full text-sm ${stateColors}`}>
-            {note.state}
-          </span>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {note.title || '(No title)'}
+            </h1>
+            {note.tags && note.tags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {note.tags.map((tag, i) => (
+                  <span
+                    key={i}
+                    className="inline-flex items-center px-2 py-1 rounded text-xs bg-gray-100 text-gray-600"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <span className={`px-3 py-1 rounded-full text-sm ${stateColors}`}>
+              {note.state}
+            </span>
+            {note.display_url && (
+              <a
+                href={note.display_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                Open in ProductBoard →
+              </a>
+            )}
+          </div>
         </div>
       </div>
 
@@ -66,12 +92,26 @@ export function NoteDetailPage() {
       <div className="bg-white rounded-lg shadow mb-6">
         <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <dt className="text-sm font-medium text-gray-500">Type</dt>
-            <dd className="mt-1 text-sm text-gray-900">{note.type || '-'}</dd>
+            <dt className="text-sm font-medium text-gray-500">Owner</dt>
+            <dd className="mt-1 text-sm text-gray-900">
+              {note.owner?.name || note.owner?.email || '-'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Creator</dt>
+            <dd className="mt-1 text-sm text-gray-900">
+              {note.creator?.name || note.creator?.email || '-'}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Company</dt>
+            <dd className="mt-1 text-sm text-gray-900">
+              {note.company?.name || '-'}
+            </dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-gray-500">Source</dt>
-            <dd className="mt-1 text-sm text-gray-900">{note.source || '-'}</dd>
+            <dd className="mt-1 text-sm text-gray-900">{note.source_origin || '-'}</dd>
           </div>
           <div>
             <dt className="text-sm font-medium text-gray-500">Created</dt>
@@ -85,6 +125,27 @@ export function NoteDetailPage() {
               {note.processed_at ? new Date(note.processed_at).toLocaleString() : '-'}
             </dd>
           </div>
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Response Time</dt>
+            <dd className="mt-1 text-sm">
+              {note.response_time_days !== null ? (
+                <span className={`font-medium ${
+                  note.response_time_days <= 3 ? 'text-green-600' :
+                  note.response_time_days <= 5 ? 'text-yellow-600' : 'text-red-600'
+                }`}>
+                  {note.response_time_days.toFixed(1)} days
+                </span>
+              ) : (
+                <span className="text-gray-500">
+                  {note.state === 'unprocessed' ? 'Pending' : '-'}
+                </span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm font-medium text-gray-500">Followers</dt>
+            <dd className="mt-1 text-sm text-gray-900">{note.followers_count || 0}</dd>
+          </div>
         </div>
       </div>
 
@@ -92,38 +153,81 @@ export function NoteDetailPage() {
       <div className="bg-white rounded-lg shadow mb-6">
         <div className="p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Content</h2>
-          <div className="prose max-w-none text-gray-700 whitespace-pre-wrap">
-            {note.content || '(No content)'}
-          </div>
+          {note.content ? (
+            <div
+              className="prose max-w-none text-gray-700"
+              dangerouslySetInnerHTML={{ __html: note.content }}
+            />
+          ) : (
+            <p className="text-gray-500">(No content)</p>
+          )}
         </div>
       </div>
 
-      {/* Linked Features */}
-      {note.features && note.features.length > 0 && (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Linked Features */}
         <div className="bg-white rounded-lg shadow">
           <div className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">
-              Linked Features ({note.features.length})
+              Linked Features ({note.features?.length || 0})
             </h2>
-            <div className="space-y-2">
-              {note.features.map((feature) => (
-                <Link
-                  key={feature.id}
-                  to={`/features/${feature.id}`}
-                  className="block p-3 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex justify-between items-center">
-                    <span className="font-medium text-gray-900">{feature.name}</span>
-                    {feature.product_area && (
-                      <span className="text-sm text-gray-500">{feature.product_area}</span>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
+            {note.features && note.features.length > 0 ? (
+              <div className="space-y-2">
+                {note.features.map((feature) => (
+                  <a
+                    key={feature.id}
+                    href={feature.display_url || '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-gray-900">
+                        {feature.name || feature.pb_id}
+                      </span>
+                      {feature.importance && (
+                        <span className="text-xs px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                          {feature.importance}
+                        </span>
+                      )}
+                    </div>
+                  </a>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">No linked features</p>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Comments */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Comments ({note.comments?.length || 0})
+            </h2>
+            {note.comments && note.comments.length > 0 ? (
+              <div className="space-y-4">
+                {note.comments.map((comment) => (
+                  <div key={comment.id} className="border-b pb-4 last:border-b-0 last:pb-0">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-medium text-gray-900">
+                        {comment.member?.name || comment.member?.email || 'Unknown'}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {comment.timestamp ? new Date(comment.timestamp).toLocaleString() : ''}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700">{comment.content}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-gray-500">No comments</p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
