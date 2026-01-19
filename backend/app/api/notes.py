@@ -64,6 +64,60 @@ def list_notes(
     else:
         query = query.order_by(sort_col.asc())
 
+    # Calculate group counts BEFORE pagination (using the filtered query)
+    group_counts = None
+    if group_by and group_by in ['owner', 'creator', 'company']:
+        # Build a separate query for counting by group
+        if group_by == 'owner':
+            count_query = (
+                db.query(
+                    func.coalesce(Member.name, Member.email, 'Unassigned').label('group_name'),
+                    func.count(Note.id).label('count')
+                )
+                .select_from(Note)
+                .outerjoin(Member, Note.owner_id == Member.id)
+            )
+        elif group_by == 'creator':
+            count_query = (
+                db.query(
+                    func.coalesce(Member.name, Member.email, 'Unknown').label('group_name'),
+                    func.count(Note.id).label('count')
+                )
+                .select_from(Note)
+                .outerjoin(Member, Note.created_by_id == Member.id)
+            )
+        elif group_by == 'company':
+            count_query = (
+                db.query(
+                    func.coalesce(Company.name, 'No Company').label('group_name'),
+                    func.count(Note.id).label('count')
+                )
+                .select_from(Note)
+                .outerjoin(Company, Note.company_id == Company.id)
+            )
+
+        # Apply the same filters to the count query
+        if state:
+            count_query = count_query.filter(Note.state == state)
+        if owner_id:
+            count_query = count_query.filter(Note.owner_id == owner_id)
+        if creator_id:
+            count_query = count_query.filter(Note.created_by_id == creator_id)
+        if company_id:
+            count_query = count_query.filter(Note.company_id == company_id)
+        if created_after:
+            count_query = count_query.filter(Note.created_at >= created_after)
+        if created_before:
+            count_query = count_query.filter(Note.created_at <= created_before)
+        if updated_after:
+            count_query = count_query.filter(Note.updated_at >= updated_after)
+        if updated_before:
+            count_query = count_query.filter(Note.updated_at <= updated_before)
+
+        # Group and get counts
+        count_results = count_query.group_by('group_name').all()
+        group_counts = {name or ('Unassigned' if group_by == 'owner' else 'Unknown' if group_by == 'creator' else 'No Company'): count for name, count in count_results}
+
     # Pagination
     total = query.count()
     notes = query.offset((page - 1) * limit).limit(limit).all()
@@ -71,7 +125,7 @@ def list_notes(
     # Convert to dicts with relationships
     notes_data = [_note_to_dict(n, db) for n in notes]
 
-    # Group if requested
+    # Group paginated results for display
     grouped_data = None
     if group_by and group_by in ['owner', 'creator', 'company']:
         grouped_data = {}
@@ -92,6 +146,7 @@ def list_notes(
     return {
         "data": notes_data,
         "grouped_data": grouped_data,
+        "group_counts": group_counts,
         "pagination": {
             "page": page,
             "limit": limit,

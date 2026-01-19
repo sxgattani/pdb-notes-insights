@@ -15,10 +15,11 @@ interface NotesTableProps {
   notes: Note[];
   isLoading?: boolean;
   groupedData?: Record<string, Note[]> | null;
+  groupCounts?: Record<string, number> | null;
   groupBy?: string;
 }
 
-export function NotesTable({ notes, isLoading, groupedData, groupBy }: NotesTableProps) {
+export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy }: NotesTableProps) {
   const navigate = useNavigate();
 
   const columns = useMemo(
@@ -130,19 +131,29 @@ export function NotesTable({ notes, isLoading, groupedData, groupBy }: NotesTabl
 
   // Render grouped view
   if (groupedData && groupBy) {
-    const groups = Object.entries(groupedData).sort(([a], [b]) => a.localeCompare(b));
+    // Sort groups by total count (from groupCounts) descending, then alphabetically
+    const groups = Object.entries(groupedData).sort(([a], [b]) => {
+      const countA = groupCounts?.[a] ?? 0;
+      const countB = groupCounts?.[b] ?? 0;
+      if (countB !== countA) return countB - countA;
+      return a.localeCompare(b);
+    });
     return (
       <div className="space-y-6">
-        {groups.map(([groupName, groupNotes]) => (
-          <div key={groupName} className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="bg-gray-100 px-6 py-3 border-b">
-              <h3 className="text-sm font-semibold text-gray-700">
-                {groupName} <span className="text-gray-500 font-normal">({groupNotes.length})</span>
-              </h3>
+        {groups.map(([groupName, groupNotes]) => {
+          // Use accurate count from groupCounts, fallback to array length
+          const totalCount = groupCounts?.[groupName] ?? groupNotes.length;
+          return (
+            <div key={groupName} className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="bg-gray-100 px-6 py-3 border-b">
+                <h3 className="text-sm font-semibold text-gray-700">
+                  {groupName} <span className="text-gray-500 font-normal">({totalCount})</span>
+                </h3>
+              </div>
+              <NotesTableBody notes={groupNotes} columns={columns} navigate={navigate} />
             </div>
-            <NotesTableBody notes={groupNotes} columns={columns} navigate={navigate} />
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   }

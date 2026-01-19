@@ -251,6 +251,7 @@ export function NotesListPage() {
         notes={data?.data || []}
         isLoading={isLoading}
         groupedData={data?.grouped_data}
+        groupCounts={data?.group_counts}
         groupBy={groupBy}
       />
 

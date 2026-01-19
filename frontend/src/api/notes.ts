@@ -93,6 +93,7 @@ export type FilterOptions = {
 
 export type NotesResponse = PaginatedResponse<Note> & {
   grouped_data: Record<string, Note[]> | null;
+  group_counts: Record<string, number> | null;
 };
 
 export const notesApi = {
