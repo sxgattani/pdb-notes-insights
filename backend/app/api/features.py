@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database import get_db
-from app.models import Feature, Note, NoteFeature, User
+from app.models import Feature, Note, NoteFeature
 
 router = APIRouter(prefix="/features", tags=["features"])
 

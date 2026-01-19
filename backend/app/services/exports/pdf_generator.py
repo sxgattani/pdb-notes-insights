@@ -5,7 +5,7 @@ from sqlalchemy import func, Integer
 from weasyprint import HTML, CSS
 
 from app.config import get_settings
-from app.models import Note, Feature, User, Export
+from app.models import Note, Feature, Member, Export
 
 SLA_DAYS = 5  # Notes should be processed within 5 days
 
@@ -105,17 +105,10 @@ class PDFExportService:
                 or 0
             )
 
-            # Notes by type
-            notes_by_type = dict(
-                self.db.query(Note.type, func.count(Note.id))
-                .group_by(Note.type)
-                .all()
-            )
-
-            # Notes by source
+            # Notes by source origin
             notes_by_source = dict(
-                self.db.query(Note.source, func.count(Note.id))
-                .group_by(Note.source)
+                self.db.query(Note.source_origin, func.count(Note.id))
+                .group_by(Note.source_origin)
                 .all()
             )
 
@@ -132,11 +125,6 @@ class PDFExportService:
 
             # Build HTML
             generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
-
-            # Build notes by type table rows
-            type_rows = ""
-            for note_type, count in sorted(notes_by_type.items(), key=lambda x: x[1], reverse=True):
-                type_rows += f"<tr><td>{note_type or 'Unknown'}</td><td>{count}</td></tr>"
 
             # Build notes by source table rows
             source_rows = ""
@@ -172,14 +160,6 @@ class PDFExportService:
       <div class="stat-value">{recent_notes_count}</div>
       <div class="stat-label">Last 7 Days</div>
     </div>
-  </div>
-
-  <div class="section">
-    <h2>Notes by Type</h2>
-    <table>
-      <tr><th>Type</th><th>Count</th></tr>
-      {type_rows}
-    </table>
   </div>
 
   <div class="section">
@@ -341,9 +321,9 @@ class PDFExportService:
             # Get note counts per owner
             note_stats = (
                 self.db.query(
-                    User.id,
-                    User.name,
-                    User.email,
+                    Member.id,
+                    Member.name,
+                    Member.email,
                     func.count(Note.id).label("total_notes"),
                     func.sum(func.cast(Note.state == "unprocessed", Integer)).label(
                         "unprocessed_notes"
@@ -352,8 +332,8 @@ class PDFExportService:
                         "processed_notes"
                     ),
                 )
-                .outerjoin(Note, Note.owner_id == User.id)
-                .group_by(User.id, User.name, User.email)
+                .outerjoin(Note, Note.owner_id == Member.id)
+                .group_by(Member.id, Member.name, Member.email)
                 .all()
             )
 
@@ -519,15 +499,15 @@ class PDFExportService:
             # SLA by owner
             breached_by_owner = (
                 self.db.query(
-                    User.id,
-                    User.name,
-                    User.email,
+                    Member.id,
+                    Member.name,
+                    Member.email,
                     func.count(Note.id).label("breached_count"),
                 )
-                .join(Note, Note.owner_id == User.id)
+                .join(Note, Note.owner_id == Member.id)
                 .filter(Note.state == "unprocessed")
                 .filter(Note.created_at < sla_threshold)
-                .group_by(User.id, User.name, User.email)
+                .group_by(Member.id, Member.name, Member.email)
                 .all()
             )
 
