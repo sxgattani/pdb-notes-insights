@@ -22,6 +22,273 @@ function formatDateForInput(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
+// Sort indicator component
+function SortIndicator({ active, direction }: { active: boolean; direction: 'asc' | 'desc' }) {
+  if (!active) {
+    return (
+      <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    );
+  }
+  if (direction === 'asc') {
+    return (
+      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+// SLA by Owner table with sorting
+type OwnerSortField = 'name' | 'breached' | 'at_risk' | 'on_track' | 'compliance_rate';
+
+function SLAByOwnerTable({
+  owners,
+  onRowClick,
+}: {
+  owners: SLAByOwner[];
+  onRowClick: (ownerId: number) => void;
+}) {
+  const [sortField, setSortField] = useState<OwnerSortField>('breached');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: OwnerSortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const sortedOwners = useMemo(() => {
+    return [...owners].sort((a, b) => {
+      let aVal: number | string = sortField === 'name' ? a.name.toLowerCase() : a[sortField];
+      let bVal: number | string = sortField === 'name' ? b.name.toLowerCase() : b[sortField];
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [owners, sortField, sortOrder]);
+
+  const columns: Array<{ field: OwnerSortField; label: string; align: 'left' | 'right' }> = [
+    { field: 'name', label: 'Owner', align: 'left' },
+    { field: 'breached', label: 'Breached', align: 'right' },
+    { field: 'at_risk', label: 'At Risk', align: 'right' },
+    { field: 'on_track', label: 'On Track', align: 'right' },
+    { field: 'compliance_rate', label: 'Compliance', align: 'right' },
+  ];
+
+  return (
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            {columns.map((col) => (
+              <th
+                key={col.field}
+                onClick={() => handleSort(col.field)}
+                className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none ${
+                  col.align === 'left' ? 'text-left' : 'text-right'
+                }`}
+              >
+                <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : ''}`}>
+                  {col.label}
+                  <SortIndicator active={sortField === col.field} direction={sortOrder} />
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {sortedOwners.map((owner) => (
+            <tr
+              key={owner.id}
+              onClick={() => onRowClick(owner.id)}
+              className="hover:bg-gray-50 cursor-pointer"
+            >
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-sm font-medium mr-3">
+                    {owner.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="text-sm font-medium text-gray-900">{owner.name}</span>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                {owner.breached > 0 ? (
+                  <span className="text-red-600 font-medium">{owner.breached}</span>
+                ) : (
+                  <span className="text-gray-400">0</span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                {owner.at_risk > 0 ? (
+                  <span className="text-yellow-600 font-medium">{owner.at_risk}</span>
+                ) : (
+                  <span className="text-gray-400">0</span>
+                )}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                <span className="text-green-600">{owner.on_track}</span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                <span className={`font-medium ${getComplianceColor(owner.compliance_rate)}`}>
+                  {owner.compliance_rate.toFixed(1)}%
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {owners.length === 0 && (
+        <div className="p-8 text-center text-gray-500">
+          No owner data available
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Notes table with sorting (for breached and at-risk)
+type NoteSortField = 'title' | 'owner_name' | 'company_name' | 'days_old' | 'created_at';
+
+function SLANotesTable({
+  notes,
+  type,
+  onRowClick,
+}: {
+  notes: SLANote[];
+  type: 'breached' | 'at-risk';
+  onRowClick: (noteId: number) => void;
+}) {
+  const [sortField, setSortField] = useState<NoteSortField>('days_old');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: NoteSortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const sortedNotes = useMemo(() => {
+    return [...notes].sort((a, b) => {
+      let aVal: number | string;
+      let bVal: number | string;
+
+      switch (sortField) {
+        case 'title':
+          aVal = (a.title || '').toLowerCase();
+          bVal = (b.title || '').toLowerCase();
+          break;
+        case 'owner_name':
+          aVal = (a.owner_name || 'zzz').toLowerCase(); // Put nulls at end
+          bVal = (b.owner_name || 'zzz').toLowerCase();
+          break;
+        case 'company_name':
+          aVal = (a.company_name || 'zzz').toLowerCase();
+          bVal = (b.company_name || 'zzz').toLowerCase();
+          break;
+        case 'created_at':
+          aVal = new Date(a.created_at).getTime();
+          bVal = new Date(b.created_at).getTime();
+          break;
+        default:
+          aVal = a[sortField];
+          bVal = b[sortField];
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [notes, sortField, sortOrder]);
+
+  const isBreached = type === 'breached';
+  const badgeColor = isBreached ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
+  const rowHoverColor = isBreached ? 'hover:bg-red-50' : 'hover:bg-yellow-50';
+
+  const columns: Array<{ field: NoteSortField; label: string; align: 'left' | 'right' }> = [
+    { field: 'title', label: 'Title', align: 'left' },
+    { field: 'owner_name', label: 'Owner', align: 'left' },
+    { field: 'company_name', label: 'Company', align: 'left' },
+    { field: 'days_old', label: 'Days Old', align: 'right' },
+    { field: 'created_at', label: 'Created At', align: 'right' },
+  ];
+
+  return (
+    <div className="bg-white rounded-lg shadow overflow-hidden">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            {columns.map((col) => (
+              <th
+                key={col.field}
+                onClick={() => handleSort(col.field)}
+                className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase cursor-pointer hover:bg-gray-100 select-none ${
+                  col.align === 'left' ? 'text-left' : 'text-right'
+                }`}
+              >
+                <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : ''}`}>
+                  {col.label}
+                  <SortIndicator active={sortField === col.field} direction={sortOrder} />
+                </div>
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {sortedNotes.map((note) => (
+            <tr
+              key={note.id}
+              onClick={() => onRowClick(note.id)}
+              className={`${rowHoverColor} cursor-pointer`}
+            >
+              <td className="px-6 py-4 whitespace-nowrap">
+                <div className="flex items-center">
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeColor} mr-3`}>
+                    {isBreached ? 'Breached' : 'At Risk'}
+                  </span>
+                  <span className="font-medium text-gray-900">{note.title}</span>
+                </div>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                {note.owner_name || <span className="text-gray-400">Unassigned</span>}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                {note.company_name || <span className="text-gray-400">-</span>}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                <span className={isBreached ? 'text-red-600 font-medium' : 'text-yellow-600 font-medium'}>
+                  {note.days_old} days
+                </span>
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
+                {formatDate(note.created_at)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {notes.length === 0 && (
+        <div className="p-8 text-center text-gray-500">
+          No {isBreached ? 'breached' : 'at-risk'} notes
+        </div>
+      )}
+    </div>
+  );
+}
+
 function loadStoredPeriod(): { periodType: PeriodType; presetDays: number; customStart: string; customEnd: string } {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -93,138 +360,12 @@ export function SLAPage() {
   const byOwner = data?.by_owner || [];
   const slaDays = data?.sla_days || 5;
 
-  // Sort by days_old descending (oldest first)
-  const sortedBreachedNotes = [...breachedNotes].sort((a, b) => b.days_old - a.days_old);
-  const sortedAtRiskNotes = [...atRiskNotes].sort((a, b) => b.days_old - a.days_old);
-
   const handleRowClick = (noteId: number) => {
     navigate(`/notes/${noteId}`);
   };
 
   const handleOwnerClick = (ownerId: number) => {
     navigate(`/notes?owner_id=${ownerId}&state=unprocessed`);
-  };
-
-  const renderNotesTable = (notes: SLANote[], type: 'breached' | 'at-risk') => {
-    const isBreached = type === 'breached';
-    const badgeColor = isBreached ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800';
-    const rowHoverColor = isBreached ? 'hover:bg-red-50' : 'hover:bg-yellow-50';
-
-    return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Days Old</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Created At</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {notes.map((note) => (
-              <tr
-                key={note.id}
-                onClick={() => handleRowClick(note.id)}
-                className={`${rowHoverColor} cursor-pointer`}
-              >
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeColor} mr-3`}>
-                      {isBreached ? 'Breached' : 'At Risk'}
-                    </span>
-                    <span className="font-medium text-gray-900">{note.title}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {note.owner_name || <span className="text-gray-400">Unassigned</span>}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                  {note.company_name || <span className="text-gray-400">-</span>}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  <span className={isBreached ? 'text-red-600 font-medium' : 'text-yellow-600 font-medium'}>
-                    {note.days_old} days
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-500">
-                  {formatDate(note.created_at)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {notes.length === 0 && (
-          <div className="p-8 text-center text-gray-500">
-            No {isBreached ? 'breached' : 'at-risk'} notes
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  const renderOwnerTable = (owners: SLAByOwner[]) => {
-    return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Breached</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">At Risk</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">On Track</th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Compliance</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {owners.map((owner) => (
-              <tr
-                key={owner.id}
-                onClick={() => handleOwnerClick(owner.id)}
-                className="hover:bg-gray-50 cursor-pointer"
-              >
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-sm font-medium mr-3">
-                      {owner.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
-                    <span className="text-sm font-medium text-gray-900">{owner.name}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  {owner.breached > 0 ? (
-                    <span className="text-red-600 font-medium">{owner.breached}</span>
-                  ) : (
-                    <span className="text-gray-400">0</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  {owner.at_risk > 0 ? (
-                    <span className="text-yellow-600 font-medium">{owner.at_risk}</span>
-                  ) : (
-                    <span className="text-gray-400">0</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  <span className="text-green-600">{owner.on_track}</span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
-                  <span className={`font-medium ${getComplianceColor(owner.compliance_rate)}`}>
-                    {owner.compliance_rate.toFixed(1)}%
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {owners.length === 0 && (
-          <div className="p-8 text-center text-gray-500">
-            No owner data available
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -313,7 +454,7 @@ export function SLAPage() {
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
           SLA by Owner
         </h2>
-        {renderOwnerTable(byOwner)}
+        <SLAByOwnerTable owners={byOwner} onRowClick={handleOwnerClick} />
       </div>
 
       {/* Breached Notes Table */}
@@ -322,7 +463,7 @@ export function SLAPage() {
           Breached Notes
           <span className="ml-2 text-sm font-normal text-gray-500">(past {slaDays}-day SLA)</span>
         </h2>
-        {renderNotesTable(sortedBreachedNotes, 'breached')}
+        <SLANotesTable notes={breachedNotes} type="breached" onRowClick={handleRowClick} />
       </div>
 
       {/* At-Risk Notes Table */}
@@ -331,7 +472,7 @@ export function SLAPage() {
           At-Risk Notes
           <span className="ml-2 text-sm font-normal text-gray-500">(approaching deadline)</span>
         </h2>
-        {renderNotesTable(sortedAtRiskNotes, 'at-risk')}
+        <SLANotesTable notes={atRiskNotes} type="at-risk" onRowClick={handleRowClick} />
       </div>
     </div>
   );
