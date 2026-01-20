@@ -99,6 +99,16 @@ async def trigger_sync_if_needed(
     return {"message": "Sync triggered", "status": "running", "triggered": True}
 
 
+def _format_datetime_utc(dt) -> str | None:
+    """Format datetime as ISO string with UTC timezone marker."""
+    if not dt:
+        return None
+    # Ensure timezone info is included (SQLite stores naive datetimes as UTC)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 @router.get("/status")
 def get_sync_status(db: Session = Depends(get_db)):
     """Get current sync status including last completed sync time."""
@@ -109,19 +119,18 @@ def get_sync_status(db: Session = Depends(get_db)):
     )
 
     last_sync = _get_last_completed_sync(db)
-    last_sync_at = last_sync.completed_at.isoformat() if last_sync and last_sync.completed_at else None
 
     if running:
         return {
             "status": "running",
             "entity_type": running.entity_type,
-            "started_at": running.started_at.isoformat() if running.started_at else None,
-            "last_sync_at": last_sync_at,
+            "started_at": _format_datetime_utc(running.started_at),
+            "last_sync_at": _format_datetime_utc(last_sync.completed_at) if last_sync else None,
         }
 
     return {
         "status": "idle",
-        "last_sync_at": last_sync_at,
+        "last_sync_at": _format_datetime_utc(last_sync.completed_at) if last_sync else None,
     }
 
 
