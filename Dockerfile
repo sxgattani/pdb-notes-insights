@@ -32,4 +32,5 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
 # Run with gunicorn for production
-CMD ["gunicorn", "app.main:app", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
+# Use single worker since sessions are stored in-memory
+CMD ["gunicorn", "app.main:app", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]

@@ -46,12 +46,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Get allowed origins from environment or use defaults
+cors_origins = [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://notes-hq.fly.dev",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Set-Cookie"],
 )
 
 # Include routers

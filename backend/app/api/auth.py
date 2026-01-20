@@ -59,7 +59,13 @@ def logout(
     if session_token:
         invalidate_session(session_token)
 
-    response.delete_cookie(SESSION_COOKIE_NAME)
+    settings = get_settings()
+    response.delete_cookie(
+        SESSION_COOKIE_NAME,
+        path="/",
+        secure=settings.secure_cookies,
+        samesite="none" if settings.secure_cookies else "lax",
+    )
     return {"message": "Logged out successfully"}
 
 
