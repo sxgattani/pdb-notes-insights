@@ -1,17 +1,22 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.config import get_settings
-from app.api import sync, notes, features, reports, exports, scheduler, auth
+from app.api import sync, notes, features, reports, scheduler, auth
 from app.scheduler import start_scheduler, shutdown_scheduler
 from app.scheduler.sync_job import register_sync_job
-from app.scheduler.export_job import register_export_job
 from app.database import engine, Base
 from app import models  # noqa: F401 - imports models to register them
 
 settings = get_settings()
+
+# Frontend build directory (relative to backend)
+FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend" / "dist"
 
 
 @asynccontextmanager
@@ -22,7 +27,6 @@ async def lifespan(app: FastAPI):
 
     # Startup
     register_sync_job()
-    register_export_job()
     start_scheduler()
 
     yield
@@ -51,7 +55,6 @@ app.include_router(sync.router, prefix="/api/v1")
 app.include_router(notes.router, prefix="/api/v1")
 app.include_router(features.router, prefix="/api/v1")
 app.include_router(reports.router, prefix="/api/v1")
-app.include_router(exports.router, prefix="/api/v1")
 app.include_router(scheduler.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
 
@@ -59,3 +62,19 @@ app.include_router(auth.router, prefix="/api/v1")
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+# Serve frontend static files (if built)
+if FRONTEND_DIR.exists():
+    # Serve static assets (JS, CSS, images)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIR / "assets"), name="assets")
+
+    # Catch-all route for client-side routing - must be last
+    @app.get("/{full_path:path}")
+    async def serve_frontend(request: Request, full_path: str):
+        # Don't serve frontend for API routes
+        if full_path.startswith("api/"):
+            return {"detail": "Not Found"}
+
+        # Serve index.html for all other routes (React Router handles routing)
+        return FileResponse(FRONTEND_DIR / "index.html")

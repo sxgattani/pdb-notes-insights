@@ -5,7 +5,6 @@ from app.models.note import Note
 from app.models.note_feature import NoteFeature
 from app.models.note_comment import NoteComment
 from app.models.sync_history import SyncHistory
-from app.models.export import Export
 
 __all__ = [
     "Member",
@@ -15,5 +14,4 @@ __all__ = [
     "NoteFeature",
     "NoteComment",
     "SyncHistory",
-    "Export",
 ]

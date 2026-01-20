@@ -1,28 +1,47 @@
-import { useState, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState, useMemo, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { reportsApi } from '../api/reports';
-import { syncApi } from '../api/sync';
 import { StatCard } from '../components/StatCard';
 
 type PeriodType = 'preset' | 'custom';
+
+const STORAGE_KEY = 'dashboard-period';
 
 function formatDate(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
+function loadStoredPeriod(): { periodType: PeriodType; presetDays: number; customStart: string; customEnd: string } {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch {}
+  return {
+    periodType: 'preset',
+    presetDays: 7,
+    customStart: formatDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+    customEnd: formatDate(new Date()),
+  };
+}
+
 export function Dashboard() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
-  const [syncing, setSyncing] = useState(false);
-  const [syncMessage, setSyncMessage] = useState('');
 
-  // Period selection state
-  const [periodType, setPeriodType] = useState<PeriodType>('preset');
-  const [presetDays, setPresetDays] = useState(30);
-  const [customStart, setCustomStart] = useState(() => formatDate(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
-  const [customEnd, setCustomEnd] = useState(() => formatDate(new Date()));
+  // Period selection state - load from localStorage
+  const initialPeriod = loadStoredPeriod();
+  const [periodType, setPeriodType] = useState<PeriodType>(initialPeriod.periodType);
+  const [presetDays, setPresetDays] = useState(initialPeriod.presetDays);
+  const [customStart, setCustomStart] = useState(initialPeriod.customStart);
+  const [customEnd, setCustomEnd] = useState(initialPeriod.customEnd);
+
+  // Save to localStorage when period changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ periodType, presetDays, customStart, customEnd }));
+  }, [periodType, presetDays, customStart, customEnd]);
 
   // Calculate effective days for API call
   const effectiveDays = useMemo(() => {
@@ -65,39 +84,9 @@ export function Dashboard() {
     queryFn: () => reportsApi.getSLA(effectiveDays).then(r => r.data),
   });
 
-  const { data: syncStatus } = useQuery({
-    queryKey: ['sync', 'status'],
-    queryFn: () => syncApi.getStatus().then(r => r.data),
-    refetchInterval: syncing ? 3000 : false,
-  });
-
-  const handleSync = async () => {
-    setSyncing(true);
-    setSyncMessage('');
-    try {
-      await syncApi.trigger();
-      setSyncMessage('Sync started! This may take a few minutes.');
-      const checkStatus = setInterval(async () => {
-        const status = await syncApi.getStatus();
-        if (status.data.status === 'idle') {
-          clearInterval(checkStatus);
-          setSyncing(false);
-          setSyncMessage('Sync completed!');
-          queryClient.invalidateQueries();
-          setTimeout(() => setSyncMessage(''), 5000);
-        }
-      }, 3000);
-    } catch (error) {
-      setSyncing(false);
-      setSyncMessage('Sync failed. Check your API token.');
-    }
-  };
-
   if (insightsLoading || slaLoading) {
     return <div className="p-8">Loading...</div>;
   }
-
-  const isSyncing = syncing || syncStatus?.status === 'running';
 
   // SLA donut data
   const slaChartData = slaData ? [
@@ -163,25 +152,6 @@ export function Dashboard() {
               />
             </div>
           )}
-
-          {syncMessage && (
-            <span className={`text-sm ${syncMessage.includes('failed') ? 'text-red-600' : 'text-green-600'}`}>
-              {syncMessage}
-            </span>
-          )}
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-          >
-            {isSyncing && (
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-              </svg>
-            )}
-            {isSyncing ? 'Syncing...' : 'Sync from ProductBoard'}
-          </button>
         </div>
       </div>
 

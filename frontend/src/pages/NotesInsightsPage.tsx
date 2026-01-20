@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -7,6 +7,8 @@ import {
 } from 'recharts';
 import { reportsApi } from '../api/reports';
 import type { FloatStatWithChange, StatWithChange } from '../api/reports';
+
+const STORAGE_KEY = 'insights-period';
 
 function formatNumber(num: number): string {
   if (num >= 1000) {
@@ -243,14 +245,35 @@ function formatDateForInput(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
+function loadStoredPeriod(): { periodType: PeriodType; presetDays: number; customStart: string; customEnd: string } {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch {}
+  return {
+    periodType: 'preset',
+    presetDays: 7,
+    customStart: formatDateForInput(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)),
+    customEnd: formatDateForInput(new Date()),
+  };
+}
+
 export function NotesInsightsPage() {
   const navigate = useNavigate();
 
-  // Period selection state
-  const [periodType, setPeriodType] = useState<PeriodType>('preset');
-  const [presetDays, setPresetDays] = useState(90);
-  const [customStart, setCustomStart] = useState(() => formatDateForInput(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)));
-  const [customEnd, setCustomEnd] = useState(() => formatDateForInput(new Date()));
+  // Period selection state - load from localStorage
+  const initialPeriod = loadStoredPeriod();
+  const [periodType, setPeriodType] = useState<PeriodType>(initialPeriod.periodType);
+  const [presetDays, setPresetDays] = useState(initialPeriod.presetDays);
+  const [customStart, setCustomStart] = useState(initialPeriod.customStart);
+  const [customEnd, setCustomEnd] = useState(initialPeriod.customEnd);
+
+  // Save to localStorage when period changes
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ periodType, presetDays, customStart, customEnd }));
+  }, [periodType, presetDays, customStart, customEnd]);
 
   // Calculate effective days for API call
   const effectiveDays = useMemo(() => {
