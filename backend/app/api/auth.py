@@ -36,12 +36,14 @@ def login(request: LoginRequest, response: Response):
     settings = get_settings()
 
     # Set session cookie (httponly for security)
+    # Use SameSite=None for secure cookies to work with API requests
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
         httponly=True,
         secure=settings.secure_cookies,  # True for HTTPS (production)
-        samesite="lax",
+        samesite="none" if settings.secure_cookies else "lax",
+        path="/",
         max_age=60 * 60 * 24,  # 24 hours
     )
 
