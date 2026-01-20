@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import { authApi } from '../api/auth';
+import { syncApi } from '../api/sync';
 import type { User } from '../api/auth';
 
 interface AuthContextType {
@@ -35,6 +36,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     await authApi.login({ username, password });
     await checkAuth();
+
+    // Trigger sync on login (only if not synced recently)
+    try {
+      await syncApi.triggerIfNeeded();
+    } catch {
+      // Sync trigger failure shouldn't block login
+      console.error('Failed to trigger sync on login');
+    }
   };
 
   const logout = async () => {

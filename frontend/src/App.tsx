@@ -49,6 +49,21 @@ function LogoutButton() {
   );
 }
 
+function formatLastSyncTime(isoString: string | undefined): string {
+  if (!isoString) return 'Never';
+
+  const date = new Date(isoString);
+  const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const dateStr = date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+
+  // Get timezone abbreviation
+  const tzAbbr = new Intl.DateTimeFormat('en', { timeZoneName: 'short' })
+    .formatToParts(date)
+    .find(part => part.type === 'timeZoneName')?.value || '';
+
+  return `${dateStr} ${timeStr} ${tzAbbr}`;
+}
+
 function SyncButton() {
   const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
@@ -57,16 +72,32 @@ function SyncButton() {
   const { data: syncStatus } = useQuery({
     queryKey: ['sync', 'status'],
     queryFn: () => syncApi.getStatus().then(r => r.data),
-    refetchInterval: syncing ? 3000 : false,
+    refetchInterval: syncing ? 3000 : 30000,
   });
 
   const isSyncing = syncing || syncStatus?.status === 'running';
 
   const handleSync = async () => {
+    // Don't trigger if already syncing
+    if (isSyncing) {
+      setSyncMessage('Sync already in progress');
+      setTimeout(() => setSyncMessage(''), 3000);
+      return;
+    }
+
     setSyncing(true);
     setSyncMessage('');
     try {
-      await syncApi.trigger();
+      const response = await syncApi.trigger();
+
+      if (!response.data.triggered) {
+        // Sync wasn't triggered (already running)
+        setSyncing(false);
+        setSyncMessage(response.data.message);
+        setTimeout(() => setSyncMessage(''), 3000);
+        return;
+      }
+
       setSyncMessage('Syncing...');
       const checkStatus = setInterval(async () => {
         const status = await syncApi.getStatus();
@@ -86,8 +117,11 @@ function SyncButton() {
 
   return (
     <div className="flex items-center gap-3">
+      <span className="text-sm text-gray-500">
+        Last sync: {formatLastSyncTime(syncStatus?.last_sync_at)}
+      </span>
       {syncMessage && (
-        <span className={`text-sm ${syncMessage.includes('failed') ? 'text-red-600' : 'text-green-600'}`}>
+        <span className={`text-sm ${syncMessage.includes('failed') || syncMessage.includes('already') ? 'text-amber-600' : 'text-green-600'}`}>
           {syncMessage}
         </span>
       )}
