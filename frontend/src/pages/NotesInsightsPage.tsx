@@ -23,21 +23,30 @@ function StatCard({
   periodDays,
   suffix,
   onClick,
+  higherIsBetter = false,
 }: {
   title: string;
   stat: StatWithChange | FloatStatWithChange;
   periodDays: number;
   suffix?: string;
   onClick?: () => void;
+  higherIsBetter?: boolean;
 }) {
   const hasChange = stat.change !== null;
   const isPositive = hasChange && stat.change! > 0;
   const isNegative = hasChange && stat.change! < 0;
 
-  // For response time, lower is better so invert the colors
-  const isResponseTime = title.toLowerCase().includes('response');
-  const positiveColor = isResponseTime ? 'text-red-600' : 'text-red-600';
-  const negativeColor = isResponseTime ? 'text-green-600' : 'text-green-600';
+  // Determine color based on whether higher is better for this metric
+  // higherIsBetter=true: ↑ green, ↓ red (e.g., Processed Notes)
+  // higherIsBetter=false: ↑ red, ↓ green (e.g., Unprocessed, Response Time)
+  const getChangeColor = () => {
+    if (!hasChange) return 'text-gray-500';
+    if (higherIsBetter) {
+      return isPositive ? 'text-green-600' : 'text-red-600';
+    } else {
+      return isPositive ? 'text-red-600' : 'text-green-600';
+    }
+  };
 
   return (
     <div
@@ -51,7 +60,7 @@ function StatCard({
         </span>
         {suffix && <span className="text-lg text-gray-500">{suffix}</span>}
         {hasChange && (
-          <span className={`text-sm font-medium ${isPositive ? positiveColor : isNegative ? negativeColor : 'text-gray-500'}`}>
+          <span className={`text-sm font-medium ${getChangeColor()}`}>
             {isPositive ? '↑' : isNegative ? '↓' : ''}{Math.abs(stat.change!)}%
           </span>
         )}
@@ -414,6 +423,7 @@ export function NotesInsightsPage() {
               stat={insightsData.summary.processed}
               periodDays={effectiveDays}
               onClick={() => navigate(`/notes?state=processed&${dateFilterParams}`)}
+              higherIsBetter={true}
             />
             <StatCard
               title="Unprocessed Notes"
