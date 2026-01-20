@@ -233,16 +233,16 @@ export function Dashboard() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {(insightsData?.by_owner || []).slice(0, 8).map((owner) => (
                   <tr
-                    key={owner.id}
-                    onClick={() => navigate(`/notes?owner_id=${owner.id}&${dateFilterParams}`)}
+                    key={owner.id ?? 'unassigned'}
+                    onClick={() => navigate(owner.id ? `/notes?owner_id=${owner.id}&${dateFilterParams}` : `/notes?unassigned=true&${dateFilterParams}`)}
                     className="hover:bg-gray-50 cursor-pointer"
                   >
                     <td className="px-6 py-3 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-sm font-medium mr-3">
-                          {owner.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium mr-3 ${owner.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                          {owner.id ? owner.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?'}
                         </div>
-                        <span className="text-sm font-medium text-gray-900">{owner.name}</span>
+                        <span className={`text-sm font-medium ${owner.id ? 'text-gray-900' : 'text-gray-500'}`}>{owner.name}</span>
                       </div>
                     </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-right text-gray-500">

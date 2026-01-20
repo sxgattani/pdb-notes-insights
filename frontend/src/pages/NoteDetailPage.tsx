@@ -94,7 +94,7 @@ export function NoteDetailPage() {
           <div>
             <dt className="text-sm font-medium text-gray-500">Owner</dt>
             <dd className="mt-1 text-sm text-gray-900">
-              {note.owner?.name || note.owner?.email || '-'}
+              {note.owner?.name || note.owner?.email || <span className="text-gray-400">Unassigned</span>}
             </dd>
           </div>
           <div>

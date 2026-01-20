@@ -63,7 +63,10 @@ export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy
         header: 'Owner',
         cell: (info) => {
           const owner = info.getValue();
-          return owner?.name || owner?.email || '-';
+          if (!owner) {
+            return <span className="text-gray-400">Unassigned</span>;
+          }
+          return owner.name || owner.email || 'Unassigned';
         },
       }),
       columnHelper.accessor('state', {

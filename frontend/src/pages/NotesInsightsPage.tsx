@@ -133,7 +133,7 @@ function OwnersTable({
   onRowClick,
 }: {
   owners: Array<{
-    id: number;
+    id: number | null;
     name: string;
     assigned: number;
     processed: number;
@@ -142,7 +142,7 @@ function OwnersTable({
     avg_response_time: number | null;
     sla_breached: number;
   }>;
-  onRowClick: (ownerId: number) => void;
+  onRowClick: (ownerId: number | null) => void;
 }) {
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -179,16 +179,16 @@ function OwnersTable({
           <tbody className="bg-white divide-y divide-gray-200">
             {owners.map((owner) => (
               <tr
-                key={owner.id}
+                key={owner.id ?? 'unassigned'}
                 onClick={() => onRowClick(owner.id)}
                 className="hover:bg-gray-50 cursor-pointer"
               >
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-sm font-medium mr-3">
-                      {owner.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium mr-3 ${owner.id ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                      {owner.id ? owner.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : '?'}
                     </div>
-                    <span className="text-sm font-medium text-gray-900">{owner.name}</span>
+                    <span className={`text-sm font-medium ${owner.id ? 'text-gray-900' : 'text-gray-500'}`}>{owner.name}</span>
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
@@ -310,8 +310,12 @@ export function NotesInsightsPage() {
     );
   }
 
-  const handleOwnerClick = (ownerId: number) => {
-    navigate(`/notes?owner_id=${ownerId}&${dateFilterParams}`);
+  const handleOwnerClick = (ownerId: number | null) => {
+    if (ownerId === null) {
+      navigate(`/notes?unassigned=true&${dateFilterParams}`);
+    } else {
+      navigate(`/notes?owner_id=${ownerId}&${dateFilterParams}`);
+    }
   };
 
   return (

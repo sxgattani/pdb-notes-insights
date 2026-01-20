@@ -136,10 +136,23 @@ def get_notes_insights(
         .all()
     )
 
-    # Get SLA breached count per owner
+    # Count unassigned notes
+    unassigned_stats = (
+        db.query(
+            func.count(Note.id).label("assigned"),
+            func.sum(func.cast(Note.state == "processed", Integer)).label("processed"),
+            func.sum(func.cast(Note.state == "unprocessed", Integer)).label("unprocessed"),
+        )
+        .filter(Note.owner_id.is_(None))
+        .filter(Note.created_at >= period_start)
+        .first()
+    )
+
+    # Get SLA breached count per owner (only for notes created within period)
     sla_breached_by_owner = dict(
         db.query(Note.owner_id, func.count(Note.id))
         .filter(Note.state == "unprocessed")
+        .filter(Note.created_at >= period_start)
         .filter(Note.created_at < sla_threshold)
         .group_by(Note.owner_id)
         .all()
@@ -174,6 +187,24 @@ def get_notes_insights(
             "progress": progress,
             "avg_response_time": owner_avg_rt,
             "sla_breached": sla_breached_by_owner.get(member_id, 0),
+        })
+
+    # Add unassigned notes entry if there are any
+    if unassigned_stats and unassigned_stats.assigned:
+        unassigned_assigned = unassigned_stats.assigned or 0
+        unassigned_processed = unassigned_stats.processed or 0
+        unassigned_unprocessed = unassigned_stats.unprocessed or 0
+        unassigned_progress = round((unassigned_processed / unassigned_assigned * 100), 0) if unassigned_assigned > 0 else 0
+        owners.append({
+            "id": None,
+            "name": "Unassigned",
+            "email": None,
+            "assigned": unassigned_assigned,
+            "processed": unassigned_processed,
+            "unprocessed": unassigned_unprocessed,
+            "progress": unassigned_progress,
+            "avg_response_time": None,
+            "sla_breached": sla_breached_by_owner.get(None, 0),
         })
 
     # Sort by assigned descending

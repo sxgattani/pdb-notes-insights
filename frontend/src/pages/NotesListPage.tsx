@@ -158,11 +158,19 @@ export function NotesListPage() {
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Owner</label>
               <select
-                value={ownerId}
-                onChange={(e) => updateParams({ owner_id: e.target.value || undefined })}
+                value={unassigned ? 'unassigned' : ownerId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'unassigned') {
+                    updateParams({ unassigned: 'true', owner_id: undefined });
+                  } else {
+                    updateParams({ owner_id: val || undefined, unassigned: undefined });
+                  }
+                }}
                 className="w-full border rounded px-3 py-2 text-sm"
               >
                 <option value="">All Owners</option>
+                <option value="unassigned">Unassigned</option>
                 {filterOptions?.owners.map((o) => (
                   <option key={o.id} value={o.id}>{o.name || `User ${o.id}`}</option>
                 ))}
