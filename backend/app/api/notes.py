@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime, timedelta
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -51,14 +52,19 @@ def list_notes(
         query = query.filter(Note.company_id == company_id)
 
     # Date range filters
+    # For "before" dates, add 1 day to include the entire day (since date strings are interpreted as midnight)
     if created_after:
         query = query.filter(Note.created_at >= created_after)
     if created_before:
-        query = query.filter(Note.created_at <= created_before)
+        # Add 1 day to include all notes created on the specified date
+        created_before_dt = datetime.strptime(created_before, "%Y-%m-%d") + timedelta(days=1)
+        query = query.filter(Note.created_at < created_before_dt)
     if updated_after:
         query = query.filter(Note.updated_at >= updated_after)
     if updated_before:
-        query = query.filter(Note.updated_at <= updated_before)
+        # Add 1 day to include all notes updated on the specified date
+        updated_before_dt = datetime.strptime(updated_before, "%Y-%m-%d") + timedelta(days=1)
+        query = query.filter(Note.updated_at < updated_before_dt)
 
     # Sorting
     sort_col = getattr(Note, sort, Note.created_at)
@@ -113,11 +119,13 @@ def list_notes(
         if created_after:
             count_query = count_query.filter(Note.created_at >= created_after)
         if created_before:
-            count_query = count_query.filter(Note.created_at <= created_before)
+            created_before_dt = datetime.strptime(created_before, "%Y-%m-%d") + timedelta(days=1)
+            count_query = count_query.filter(Note.created_at < created_before_dt)
         if updated_after:
             count_query = count_query.filter(Note.updated_at >= updated_after)
         if updated_before:
-            count_query = count_query.filter(Note.updated_at <= updated_before)
+            updated_before_dt = datetime.strptime(updated_before, "%Y-%m-%d") + timedelta(days=1)
+            count_query = count_query.filter(Note.updated_at < updated_before_dt)
 
         # Group and get counts
         count_results = count_query.group_by('group_name').all()

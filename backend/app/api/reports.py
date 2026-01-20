@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, Integer, and_, extract
 
 from app.database import get_db
-from app.models import Note, Member, Feature
+from app.models import Note, Member, Feature, Company
 
 SLA_DAYS = 5  # Notes should be processed within 5 days
 
@@ -408,23 +408,43 @@ def get_user_workload(user_id: int, db: Session = Depends(get_db)):
 
 
 @router.get("/sla")
-def get_sla_report(db: Session = Depends(get_db)):
+def get_sla_report(
+    days: int = Query(None, ge=1, le=365),
+    db: Session = Depends(get_db),
+):
     """Get SLA compliance report for notes processing."""
     now = datetime.utcnow()
     sla_threshold = now - timedelta(days=SLA_DAYS)
 
-    # Get all unprocessed notes
-    unprocessed_notes = (
-        db.query(Note)
-        .filter(Note.state == "unprocessed")
-        .all()
-    )
+    # Build query for unprocessed notes
+    query = db.query(Note).filter(Note.state == "unprocessed")
+
+    # Filter by created_at if days parameter is provided
+    if days is not None:
+        period_start = now - timedelta(days=days)
+        query = query.filter(Note.created_at >= period_start)
+
+    unprocessed_notes = query.all()
 
     at_risk = []  # Within 1 day of SLA breach
     breached = []  # Past SLA deadline
     on_track = []  # More than 1 day until SLA deadline
 
     warning_threshold = now - timedelta(days=SLA_DAYS - 1)
+
+    # Pre-fetch owners and companies for efficiency
+    owner_ids = {n.owner_id for n in unprocessed_notes if n.owner_id}
+    company_ids = {n.company_id for n in unprocessed_notes if n.company_id}
+
+    owners_map = {}
+    if owner_ids:
+        owners = db.query(Member).filter(Member.id.in_(owner_ids)).all()
+        owners_map = {m.id: m.name or m.email or "Unknown" for m in owners}
+
+    companies_map = {}
+    if company_ids:
+        companies = db.query(Company).filter(Company.id.in_(company_ids)).all()
+        companies_map = {c.id: c.name or "Unknown" for c in companies}
 
     for note in unprocessed_notes:
         if not note.created_at:
@@ -436,6 +456,9 @@ def get_sla_report(db: Session = Depends(get_db)):
             "created_at": note.created_at.isoformat(),
             "days_old": (now - note.created_at).days,
             "owner_id": note.owner_id,
+            "owner_name": owners_map.get(note.owner_id) if note.owner_id else None,
+            "company_id": note.company_id,
+            "company_name": companies_map.get(note.company_id) if note.company_id else None,
         }
 
         if note.created_at < sla_threshold:

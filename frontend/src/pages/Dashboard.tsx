@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
-import { notesApi } from '../api/notes';
 import { reportsApi } from '../api/reports';
 import { syncApi } from '../api/sync';
 import { StatCard } from '../components/StatCard';
@@ -40,15 +39,21 @@ export function Dashboard() {
   // Period label for display
   const periodLabel = useMemo(() => {
     if (periodType === 'preset') {
+      if (presetDays === 1) return 'Last 24 hours';
       return `Last ${presetDays} days`;
     }
     return `${customStart} to ${customEnd}`;
   }, [periodType, presetDays, customStart, customEnd]);
 
-  const { data: notesStats, isLoading: notesLoading } = useQuery({
-    queryKey: ['notes', 'stats'],
-    queryFn: () => notesApi.getStats().then(r => r.data),
-  });
+  // Date filter query string for navigation
+  const dateFilterParams = useMemo(() => {
+    if (periodType === 'custom') {
+      return `created_after=${customStart}&created_before=${customEnd}`;
+    }
+    const endDate = new Date();
+    const startDate = new Date(Date.now() - presetDays * 24 * 60 * 60 * 1000);
+    return `created_after=${formatDate(startDate)}&created_before=${formatDate(endDate)}`;
+  }, [periodType, presetDays, customStart, customEnd]);
 
   const { data: insightsData, isLoading: insightsLoading } = useQuery({
     queryKey: ['reports', 'notes-insights', effectiveDays],
@@ -56,8 +61,8 @@ export function Dashboard() {
   });
 
   const { data: slaData, isLoading: slaLoading } = useQuery({
-    queryKey: ['reports', 'sla'],
-    queryFn: () => reportsApi.getSLA().then(r => r.data),
+    queryKey: ['reports', 'sla', effectiveDays],
+    queryFn: () => reportsApi.getSLA(effectiveDays).then(r => r.data),
   });
 
   const { data: syncStatus } = useQuery({
@@ -88,7 +93,7 @@ export function Dashboard() {
     }
   };
 
-  if (notesLoading || insightsLoading || slaLoading) {
+  if (insightsLoading || slaLoading) {
     return <div className="p-8">Loading...</div>;
   }
 
@@ -129,6 +134,7 @@ export function Dashboard() {
               }}
               className="border-0 bg-transparent text-sm focus:ring-0 pr-8"
             >
+              <option value="1">Last 24 hours</option>
               <option value="7">Last 7 days</option>
               <option value="30">Last 30 days</option>
               <option value="60">Last 60 days</option>
@@ -183,23 +189,24 @@ export function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <StatCard
           title="Total Notes"
-          value={notesStats?.total || 0}
-          onClick={() => navigate('/notes')}
+          value={insightsData?.summary.created.value || 0}
+          subtitle={periodLabel}
+          onClick={() => navigate(`/notes?${dateFilterParams}`)}
         />
         <StatCard
           title="Processed"
-          value={notesStats?.processed || 0}
-          subtitle={`${Math.round((notesStats?.processed || 0) / (notesStats?.total || 1) * 100)}%`}
-          onClick={() => navigate('/notes?state=processed')}
+          value={insightsData?.summary.processed.value || 0}
+          subtitle={`${Math.round((insightsData?.summary.processed.value || 0) / (insightsData?.summary.created.value || 1) * 100)}%`}
+          onClick={() => navigate(`/notes?state=processed&${dateFilterParams}`)}
         />
         <StatCard
           title="Unprocessed"
-          value={notesStats?.unprocessed || 0}
-          onClick={() => navigate('/notes?state=unprocessed')}
+          value={insightsData?.summary.unprocessed.value || 0}
+          onClick={() => navigate(`/notes?state=unprocessed&${dateFilterParams}`)}
         />
         <StatCard
           title="Avg Response Time"
-          value={notesStats?.avg_response_time_days !== null ? `${notesStats?.avg_response_time_days}` : '-'}
+          value={insightsData?.summary.avg_response_time.value !== null ? `${insightsData?.summary.avg_response_time.value}` : '-'}
           subtitle="days"
           onClick={() => navigate('/insights')}
         />
@@ -227,7 +234,7 @@ export function Dashboard() {
                 {(insightsData?.by_owner || []).slice(0, 8).map((owner) => (
                   <tr
                     key={owner.id}
-                    onClick={() => navigate(`/notes?owner_id=${owner.id}`)}
+                    onClick={() => navigate(`/notes?owner_id=${owner.id}&${dateFilterParams}`)}
                     className="hover:bg-gray-50 cursor-pointer"
                   >
                     <td className="px-6 py-3 whitespace-nowrap">
@@ -276,7 +283,7 @@ export function Dashboard() {
         {/* SLA Status Donut */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-2">SLA Status</h2>
-          <p className="text-sm text-gray-500 mb-4">Unprocessed notes compliance</p>
+          <p className="text-sm text-gray-500 mb-4">{periodLabel}</p>
 
           {totalSla > 0 ? (
             <>

@@ -31,7 +31,10 @@ export type SLANote = {
   title: string;
   created_at: string;
   days_old: number;
-  owner_id: number;
+  owner_id: number | null;
+  owner_name: string | null;
+  company_id: number | null;
+  company_name: string | null;
 };
 
 export type SLAByOwner = {
@@ -123,8 +126,8 @@ export const reportsApi = {
   getUserWorkload: (userId: number) =>
     apiClient.get<any>(`/reports/workload/${userId}`),
 
-  getSLA: () =>
-    apiClient.get<SLAResponse>('/reports/sla'),
+  getSLA: (days?: number) =>
+    apiClient.get<SLAResponse>('/reports/sla', { params: days ? { days } : undefined }),
 
   getSLAByOwner: () =>
     apiClient.get<{ data: any[] }>('/reports/sla/by-owner'),

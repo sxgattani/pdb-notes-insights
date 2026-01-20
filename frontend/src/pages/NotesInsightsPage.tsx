@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -54,7 +54,7 @@ function StatCard({
           </span>
         )}
       </div>
-      <p className="mt-1 text-xs text-gray-500">Last {periodDays} days</p>
+      <p className="mt-1 text-xs text-gray-500">{periodDays === 1 ? 'Last 24 hours' : `Last ${periodDays} days`}</p>
     </div>
   );
 }
@@ -237,24 +237,56 @@ function OwnersTable({
   );
 }
 
+type PeriodType = 'preset' | 'custom';
+
+function formatDateForInput(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
 export function NotesInsightsPage() {
   const navigate = useNavigate();
-  const [days, setDays] = useState(90);
+
+  // Period selection state
+  const [periodType, setPeriodType] = useState<PeriodType>('preset');
+  const [presetDays, setPresetDays] = useState(90);
+  const [customStart, setCustomStart] = useState(() => formatDateForInput(new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)));
+  const [customEnd, setCustomEnd] = useState(() => formatDateForInput(new Date()));
+
+  // Calculate effective days for API call
+  const effectiveDays = useMemo(() => {
+    if (periodType === 'preset') {
+      return presetDays;
+    }
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }, [periodType, presetDays, customStart, customEnd]);
 
   const { data: insightsData, isLoading: insightsLoading } = useQuery({
-    queryKey: ['reports', 'notes-insights', days],
-    queryFn: () => reportsApi.getNotesInsights(days).then((r) => r.data),
+    queryKey: ['reports', 'notes-insights', effectiveDays],
+    queryFn: () => reportsApi.getNotesInsights(effectiveDays).then((r) => r.data),
   });
 
   const { data: trendData, isLoading: trendLoading } = useQuery({
-    queryKey: ['reports', 'notes-trend', days],
-    queryFn: () => reportsApi.getNotesTrend(days).then((r) => r.data),
+    queryKey: ['reports', 'notes-trend', effectiveDays],
+    queryFn: () => reportsApi.getNotesTrend(effectiveDays).then((r) => r.data),
   });
 
   const { data: responseTimeData, isLoading: responseTimeLoading } = useQuery({
-    queryKey: ['reports', 'response-time', days],
-    queryFn: () => reportsApi.getResponseTime(days).then((r) => r.data),
+    queryKey: ['reports', 'response-time', effectiveDays],
+    queryFn: () => reportsApi.getResponseTime(effectiveDays).then((r) => r.data),
   });
+
+  // Date filter query string for navigation
+  const dateFilterParams = useMemo(() => {
+    if (periodType === 'custom') {
+      return `created_after=${customStart}&created_before=${customEnd}`;
+    }
+    const endDate = new Date();
+    const startDate = new Date(Date.now() - presetDays * 24 * 60 * 60 * 1000);
+    return `created_after=${formatDateForInput(startDate)}&created_before=${formatDateForInput(endDate)}`;
+  }, [periodType, presetDays, customStart, customEnd]);
 
   const isLoading = insightsLoading || trendLoading || responseTimeLoading;
 
@@ -279,31 +311,64 @@ export function NotesInsightsPage() {
   }
 
   const handleOwnerClick = (ownerId: number) => {
-    navigate(`/notes?owner_id=${ownerId}`);
+    navigate(`/notes?owner_id=${ownerId}&${dateFilterParams}`);
   };
 
   return (
     <div className="p-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Notes Insights</h1>
-        <div className="flex items-center space-x-2">
-          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth={2} />
-            <line x1="16" y1="2" x2="16" y2="6" strokeWidth={2} />
-            <line x1="8" y1="2" x2="8" y2="6" strokeWidth={2} />
-            <line x1="3" y1="10" x2="21" y2="10" strokeWidth={2} />
-          </svg>
-          <select
-            value={days}
-            onChange={(e) => setDays(parseInt(e.target.value, 10))}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value={30}>Last 30 days</option>
-            <option value={60}>Last 60 days</option>
-            <option value={90}>Last 90 days</option>
-            <option value={180}>Last 180 days</option>
-            <option value={365}>Last 365 days</option>
-          </select>
+        <div className="flex items-center gap-4">
+          {/* Period Selector */}
+          <div className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2">
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth={2} />
+              <line x1="16" y1="2" x2="16" y2="6" strokeWidth={2} />
+              <line x1="8" y1="2" x2="8" y2="6" strokeWidth={2} />
+              <line x1="3" y1="10" x2="21" y2="10" strokeWidth={2} />
+            </svg>
+            <select
+              value={periodType === 'preset' ? presetDays.toString() : 'custom'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'custom') {
+                  setPeriodType('custom');
+                } else {
+                  setPeriodType('preset');
+                  setPresetDays(parseInt(val, 10));
+                }
+              }}
+              className="border-0 bg-transparent text-sm focus:ring-0 pr-8"
+            >
+              <option value="1">Last 24 hours</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="60">Last 60 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="180">Last 180 days</option>
+              <option value="365">Last 365 days</option>
+              <option value="custom">Custom range</option>
+            </select>
+          </div>
+
+          {/* Custom Date Inputs */}
+          {periodType === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              />
+              <span className="text-gray-500">to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -314,33 +379,33 @@ export function NotesInsightsPage() {
             <StatCard
               title="Created Notes"
               stat={insightsData.summary.created}
-              periodDays={days}
-              onClick={() => navigate('/notes')}
+              periodDays={effectiveDays}
+              onClick={() => navigate(`/notes?${dateFilterParams}`)}
             />
             <StatCard
               title="Processed Notes"
               stat={insightsData.summary.processed}
-              periodDays={days}
-              onClick={() => navigate('/notes?state=processed')}
+              periodDays={effectiveDays}
+              onClick={() => navigate(`/notes?state=processed&${dateFilterParams}`)}
             />
             <StatCard
               title="Unprocessed Notes"
               stat={insightsData.summary.unprocessed}
-              periodDays={days}
-              onClick={() => navigate('/notes?state=unprocessed')}
+              periodDays={effectiveDays}
+              onClick={() => navigate(`/notes?state=unprocessed&${dateFilterParams}`)}
             />
             <StatCard
               title="Unassigned Notes"
               stat={insightsData.summary.unassigned}
-              periodDays={days}
-              onClick={() => navigate('/notes?unassigned=true')}
+              periodDays={effectiveDays}
+              onClick={() => navigate(`/notes?unassigned=true&${dateFilterParams}`)}
             />
             <StatCard
               title="Avg Response Time"
               stat={insightsData.summary.avg_response_time}
-              periodDays={days}
+              periodDays={effectiveDays}
               suffix="days"
-              onClick={() => navigate('/notes?state=processed')}
+              onClick={() => navigate(`/notes?state=processed&${dateFilterParams}`)}
             />
           </div>
 

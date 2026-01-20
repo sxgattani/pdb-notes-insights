@@ -1,7 +1,10 @@
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { reportsApi } from '../api/reports';
 import type { SLANote, SLAByOwner } from '../api/reports';
+
+type PeriodType = 'preset' | 'custom';
 
 function getComplianceColor(rate: number): string {
   if (rate >= 90) return 'text-green-600';
@@ -13,12 +16,42 @@ function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString();
 }
 
+function formatDateForInput(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
 export function SLAPage() {
   const navigate = useNavigate();
 
+  // Period selection state
+  const [periodType, setPeriodType] = useState<PeriodType>('preset');
+  const [presetDays, setPresetDays] = useState(30);
+  const [customStart, setCustomStart] = useState(() => formatDateForInput(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)));
+  const [customEnd, setCustomEnd] = useState(() => formatDateForInput(new Date()));
+
+  // Calculate effective days for API call
+  const effectiveDays = useMemo(() => {
+    if (periodType === 'preset') {
+      return presetDays;
+    }
+    const start = new Date(customStart);
+    const end = new Date(customEnd);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }, [periodType, presetDays, customStart, customEnd]);
+
+  // Period label for display
+  const periodLabel = useMemo(() => {
+    if (periodType === 'preset') {
+      if (presetDays === 1) return 'Last 24 hours';
+      return `Last ${presetDays} days`;
+    }
+    return `${customStart} to ${customEnd}`;
+  }, [periodType, presetDays, customStart, customEnd]);
+
   const { data, isLoading } = useQuery({
-    queryKey: ['reports', 'sla'],
-    queryFn: () => reportsApi.getSLA().then((r) => r.data),
+    queryKey: ['reports', 'sla', effectiveDays],
+    queryFn: () => reportsApi.getSLA(effectiveDays).then((r) => r.data),
   });
 
   if (isLoading) {
@@ -60,6 +93,8 @@ export function SLAPage() {
           <thead className="bg-gray-50">
             <tr>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Owner</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Days Old</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Created At</th>
             </tr>
@@ -78,6 +113,12 @@ export function SLAPage() {
                     </span>
                     <span className="font-medium text-gray-900">{note.title}</span>
                   </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  {note.owner_name || <span className="text-gray-400">Unassigned</span>}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                  {note.company_name || <span className="text-gray-400">-</span>}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
                   <span className={isBreached ? 'text-red-600 font-medium' : 'text-yellow-600 font-medium'}>
@@ -165,9 +206,64 @@ export function SLAPage() {
 
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">SLA Compliance</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">SLA Compliance</h1>
+        <div className="flex items-center gap-4">
+          {/* Period Selector */}
+          <div className="flex items-center gap-2 bg-white border rounded-lg px-3 py-2">
+            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" strokeWidth={2} />
+              <line x1="16" y1="2" x2="16" y2="6" strokeWidth={2} />
+              <line x1="8" y1="2" x2="8" y2="6" strokeWidth={2} />
+              <line x1="3" y1="10" x2="21" y2="10" strokeWidth={2} />
+            </svg>
+            <select
+              value={periodType === 'preset' ? presetDays.toString() : 'custom'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'custom') {
+                  setPeriodType('custom');
+                } else {
+                  setPeriodType('preset');
+                  setPresetDays(parseInt(val, 10));
+                }
+              }}
+              className="border-0 bg-transparent text-sm focus:ring-0 pr-8"
+            >
+              <option value="1">Last 24 hours</option>
+              <option value="7">Last 7 days</option>
+              <option value="30">Last 30 days</option>
+              <option value="60">Last 60 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="180">Last 180 days</option>
+              <option value="365">Last 365 days</option>
+              <option value="custom">Custom range</option>
+            </select>
+          </div>
+
+          {/* Custom Date Inputs */}
+          {periodType === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStart}
+                onChange={(e) => setCustomStart(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              />
+              <span className="text-gray-500">to</span>
+              <input
+                type="date"
+                value={customEnd}
+                onChange={(e) => setCustomEnd(e.target.value)}
+                className="border rounded px-2 py-1 text-sm"
+              />
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Summary Cards */}
+      <p className="text-sm text-gray-500 mb-4">{periodLabel}</p>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-sm font-medium text-gray-500">Compliance Rate</h3>
