@@ -66,12 +66,23 @@ def list_notes(
         updated_before_dt = datetime.strptime(updated_before, "%Y-%m-%d") + timedelta(days=1)
         query = query.filter(Note.updated_at < updated_before_dt)
 
-    # Sorting
-    sort_col = getattr(Note, sort, Note.created_at)
-    if order == "desc":
-        query = query.order_by(sort_col.desc())
+    # Sorting - handle both direct columns and related fields
+    if sort == "company":
+        query = query.outerjoin(Company, Note.company_id == Company.id)
+        sort_expr = func.coalesce(Company.name, '')
+    elif sort == "owner":
+        query = query.outerjoin(Member, Note.owner_id == Member.id)
+        sort_expr = func.coalesce(Member.name, Member.email, '')
+    elif sort == "response_time":
+        # Sort by response time (processed_at - created_at), nulls last
+        sort_expr = func.julianday(Note.processed_at) - func.julianday(Note.created_at)
     else:
-        query = query.order_by(sort_col.asc())
+        sort_expr = getattr(Note, sort, Note.created_at)
+
+    if order == "desc":
+        query = query.order_by(sort_expr.desc())
+    else:
+        query = query.order_by(sort_expr.asc())
 
     # Calculate group counts BEFORE pagination (using the filtered query)
     group_counts = None

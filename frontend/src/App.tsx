@@ -123,7 +123,7 @@ function AppContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 flex flex-col">
       <nav className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
@@ -138,13 +138,11 @@ function AppContent() {
               <NavLink to="/insights">Insights</NavLink>
               <NavLink to="/sla">SLA</NavLink>
               <NavLink to="/notes">Notes</NavLink>
-              <SyncButton />
-              <LogoutButton />
             </div>
           </div>
         </div>
       </nav>
-      <main className="max-w-7xl mx-auto">
+      <main className="max-w-7xl mx-auto flex-1 w-full">
         <Routes>
           <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
           <Route path="/notes" element={<ProtectedRoute><NotesListPage /></ProtectedRoute>} />
@@ -153,6 +151,14 @@ function AppContent() {
           <Route path="/sla" element={<ProtectedRoute><SLAPage /></ProtectedRoute>} />
         </Routes>
       </main>
+      <footer className="bg-white border-t border-gray-200 sticky bottom-0">
+        <div className="max-w-7xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-end gap-4">
+            <SyncButton />
+            <LogoutButton />
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

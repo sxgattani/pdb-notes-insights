@@ -106,21 +106,6 @@ export function NotesListPage() {
             <option value="creator">Group by Creator</option>
             <option value="company">Group by Company</option>
           </select>
-
-          {/* Sort Order */}
-          <select
-            value={`${sort}-${order}`}
-            onChange={(e) => {
-              const [newSort, newOrder] = e.target.value.split('-');
-              updateParams({ sort: newSort, order: newOrder });
-            }}
-            className="border rounded px-3 py-2 text-sm"
-          >
-            <option value="created_at-desc">Created: Newest</option>
-            <option value="created_at-asc">Created: Oldest</option>
-            <option value="updated_at-desc">Updated: Newest</option>
-            <option value="updated_at-asc">Updated: Oldest</option>
-          </select>
         </div>
       </div>
 
@@ -263,6 +248,9 @@ export function NotesListPage() {
         groupedData={data?.grouped_data}
         groupCounts={data?.group_counts}
         groupBy={groupBy}
+        sort={sort}
+        order={order}
+        onSort={(newSort, newOrder) => updateParams({ sort: newSort, order: newOrder })}
       />
 
       {data && !groupBy && (
