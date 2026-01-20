@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Response, Request, Cookie
 from pydantic import BaseModel
 from typing import Optional
 
+from app.config import get_settings
 from app.services.auth import (
     verify_credentials,
     create_session,
@@ -32,13 +33,14 @@ def login(request: LoginRequest, response: Response):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
     token = create_session(request.username)
+    settings = get_settings()
 
     # Set session cookie (httponly for security)
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=False,  # Set to True in production with HTTPS
+        secure=settings.secure_cookies,  # True for HTTPS (production)
         samesite="lax",
         max_age=60 * 60 * 24,  # 24 hours
     )

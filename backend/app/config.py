@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     auth_username: str = "admin"
     auth_password: str = "changeme"
     session_secret: str = "change-this-secret-key"
+    secure_cookies: bool = False  # Set to True for HTTPS (production)
 
     # Sync
     sync_interval_hours: int = 4
