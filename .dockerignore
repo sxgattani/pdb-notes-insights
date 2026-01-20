@@ -1,0 +1,38 @@
+# Git
+.git
+.gitignore
+
+# Environment and secrets
+.env
+*.env
+
+# Database
+*.db
+
+# Python
+__pycache__
+*.pyc
+.venv
+venv
+.pytest_cache
+
+# Node
+frontend/node_modules
+frontend/dist
+
+# IDE
+.idea
+.vscode
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+!README.md
+
+# Local scripts
+start.sh
+stop.sh

@@ -15,8 +15,12 @@ from app import models  # noqa: F401 - imports models to register them
 
 settings = get_settings()
 
-# Frontend build directory (relative to backend)
-FRONTEND_DIR = Path(__file__).parent.parent.parent / "frontend" / "dist"
+# Frontend build directory - check multiple locations for flexibility
+_possible_frontend_dirs = [
+    Path(__file__).parent.parent.parent / "frontend" / "dist",  # Local dev
+    Path("/app/frontend/dist"),  # Docker
+]
+FRONTEND_DIR = next((p for p in _possible_frontend_dirs if p.exists()), _possible_frontend_dirs[0])
 
 
 @asynccontextmanager

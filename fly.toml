@@ -1,0 +1,24 @@
+app = "notes-hq"
+primary_region = "sjc"
+
+[build]
+
+[env]
+  DATABASE_URL = "sqlite:////data/pdb_insights.db"
+  SYNC_ENABLED = "true"
+  SYNC_INTERVAL_HOURS = "4"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[mounts]
+  source = "notes_hq_data"
+  destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
