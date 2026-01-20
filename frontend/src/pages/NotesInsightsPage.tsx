@@ -139,6 +139,30 @@ function ResponseTimeHistogram({ data }: { data: Array<{ bucket: string; count: 
   );
 }
 
+type OwnerSortField = 'name' | 'assigned' | 'processed' | 'unprocessed' | 'progress' | 'avg_response_time' | 'sla_breached';
+
+function SortIndicator({ active, direction }: { active: boolean; direction: 'asc' | 'desc' }) {
+  if (!active) {
+    return (
+      <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+      </svg>
+    );
+  }
+  if (direction === 'asc') {
+    return (
+      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+      </svg>
+    );
+  }
+  return (
+    <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
 function OwnersTable({
   owners,
   onRowClick,
@@ -155,6 +179,54 @@ function OwnersTable({
   }>;
   onRowClick: (ownerId: number | null) => void;
 }) {
+  const [sortField, setSortField] = useState<OwnerSortField>('assigned');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: OwnerSortField) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortOrder('desc');
+    }
+  };
+
+  const sortedOwners = useMemo(() => {
+    return [...owners].sort((a, b) => {
+      let aVal: number | string | null;
+      let bVal: number | string | null;
+
+      switch (sortField) {
+        case 'name':
+          aVal = a.name.toLowerCase();
+          bVal = b.name.toLowerCase();
+          break;
+        case 'avg_response_time':
+          // Treat null as Infinity so they sort to end
+          aVal = a.avg_response_time ?? (sortOrder === 'asc' ? Infinity : -Infinity);
+          bVal = b.avg_response_time ?? (sortOrder === 'asc' ? Infinity : -Infinity);
+          break;
+        default:
+          aVal = a[sortField];
+          bVal = b[sortField];
+      }
+
+      if (aVal < bVal) return sortOrder === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortOrder === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [owners, sortField, sortOrder]);
+
+  const columns: Array<{ field: OwnerSortField; label: string; align: 'left' | 'right' }> = [
+    { field: 'name', label: 'Owner', align: 'left' },
+    { field: 'assigned', label: 'Assigned', align: 'right' },
+    { field: 'processed', label: 'Processed', align: 'right' },
+    { field: 'unprocessed', label: 'Unprocessed', align: 'right' },
+    { field: 'progress', label: 'Progress', align: 'right' },
+    { field: 'avg_response_time', label: 'Avg Response', align: 'right' },
+    { field: 'sla_breached', label: 'SLA Breached', align: 'right' },
+  ];
+
   return (
     <div className="bg-white rounded-lg shadow overflow-hidden">
       <div className="px-6 py-4 border-b">
@@ -164,31 +236,24 @@ function OwnersTable({
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Owner
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Assigned
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Processed
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Unprocessed
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Progress
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Avg Response
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                SLA Breached
-              </th>
+              {columns.map((col) => (
+                <th
+                  key={col.field}
+                  onClick={() => handleSort(col.field)}
+                  className={`px-6 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 select-none ${
+                    col.align === 'left' ? 'text-left' : 'text-right'
+                  }`}
+                >
+                  <div className={`flex items-center gap-1 ${col.align === 'right' ? 'justify-end' : ''}`}>
+                    {col.label}
+                    <SortIndicator active={sortField === col.field} direction={sortOrder} />
+                  </div>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {owners.map((owner) => (
+            {sortedOwners.map((owner) => (
               <tr
                 key={owner.id ?? 'unassigned'}
                 onClick={() => onRowClick(owner.id)}
@@ -234,7 +299,7 @@ function OwnersTable({
                 </td>
               </tr>
             ))}
-            {owners.length === 0 && (
+            {sortedOwners.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-6 py-8 text-center text-gray-500">
                   No data available
