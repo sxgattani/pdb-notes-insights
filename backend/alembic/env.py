@@ -9,7 +9,7 @@ from app.config import get_settings
 from app.database import Base
 from app.models import (
     Member, Company, Feature, Note,
-    NoteFeature, NoteComment, SyncHistory, Export
+    NoteFeature, NoteComment, SyncHistory
 )
 
 config = context.config
