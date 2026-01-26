@@ -18,6 +18,8 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 COPY backend/app ./app
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
+COPY backend/start.sh ./
+RUN chmod +x start.sh
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
@@ -31,6 +33,5 @@ ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000
 
-# Run with gunicorn for production
-# Use single worker since sessions are stored in-memory
-CMD ["gunicorn", "app.main:app", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000"]
+# Run migrations and start app
+CMD ["./start.sh"]
