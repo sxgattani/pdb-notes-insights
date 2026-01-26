@@ -23,8 +23,19 @@ class NotesSyncer(BaseSyncer[Note]):
         self._company_cache: dict[str, int] = {}  # pb_id -> id
 
     async def sync(self) -> int:
-        """Sync notes from ProductBoard (incremental)."""
-        self.start_sync()
+        """Sync notes from ProductBoard (incremental or full based on schedule)."""
+        is_full_sync = self.needs_full_sync()
+
+        if is_full_sync:
+            logger.info("Starting FULL sync (first time or 7+ days since last full sync)")
+            return await self._full_sync()
+        else:
+            logger.info("Starting incremental sync")
+            return await self._incremental_sync()
+
+    async def _incremental_sync(self) -> int:
+        """Perform incremental sync - only fetch notes updated since last sync."""
+        self.start_sync(is_full_sync=False)
         last_sync = self.get_last_sync_time()
 
         # Build cache of existing companies
@@ -66,6 +77,78 @@ class NotesSyncer(BaseSyncer[Note]):
             raise
         finally:
             self._companies_api = None
+
+    async def _full_sync(self) -> int:
+        """Perform full sync - fetch all notes and soft delete missing ones."""
+        self.start_sync(is_full_sync=True)
+
+        # Build cache of existing companies
+        self._company_cache = {
+            c.pb_id: c.id for c in self.db.query(Company.pb_id, Company.id).all()
+        }
+
+        try:
+            async with ProductBoardClient() as client:
+                notes_api = NotesAPI(client)
+                self._companies_api = CompaniesAPI(client)
+
+                # Fetch ALL notes (no updated_after filter)
+                pb_notes = await notes_api.list_notes(updated_after=None)
+
+                count = 0
+                processed_note_ids = []
+                seen_pb_ids = set()
+
+                for pb_note in pb_notes:
+                    note = await self._upsert_note(pb_note)
+                    count += 1
+                    seen_pb_ids.add(pb_note.get("id"))
+
+                    # Track processed notes for enrichment
+                    if note and note.state == "processed":
+                        processed_note_ids.append(note.pb_id)
+
+                self.db.commit()
+
+                # Soft delete notes that were not seen in this full sync
+                deleted_count = self._soft_delete_missing_notes(seen_pb_ids)
+
+                # Enrich processed notes with full details (comments)
+                if processed_note_ids:
+                    logger.info(f"Enriching {len(processed_note_ids)} processed notes...")
+                    await self._enrich_notes(notes_api, processed_note_ids)
+                    self.db.commit()
+
+            self.complete_sync(count, records_deleted=deleted_count)
+            logger.info(f"Full sync completed: {count} notes synced, {deleted_count} notes soft deleted")
+            return count
+
+        except Exception as e:
+            self.fail_sync(str(e))
+            raise
+        finally:
+            self._companies_api = None
+
+    def _soft_delete_missing_notes(self, seen_pb_ids: set[str]) -> int:
+        """Soft delete notes that are in our DB but not in ProductBoard."""
+        now = datetime.now(timezone.utc)
+
+        # Find all notes that were not seen and are not already deleted
+        missing_notes = (
+            self.db.query(Note)
+            .filter(
+                Note.pb_id.notin_(seen_pb_ids),
+                Note.deleted_at.is_(None),
+            )
+            .all()
+        )
+
+        for note in missing_notes:
+            note.deleted_at = now
+            logger.info(f"Soft deleted note: {note.pb_id} - {note.title}")
+
+        self.db.commit()
+        return len(missing_notes)
 
     async def _enrich_notes(self, api: NotesAPI, note_pb_ids: list[str]):
         """Fetch full details for notes to get comments."""
@@ -154,6 +237,11 @@ class NotesSyncer(BaseSyncer[Note]):
         if is_new:
             note = Note(pb_id=pb_id)
             self.db.add(note)
+
+        # Clear deleted_at if note was previously soft-deleted but reappears
+        if note.deleted_at is not None:
+            logger.info(f"Restoring previously deleted note: {pb_id}")
+            note.deleted_at = None
 
         # Basic fields
         note.title = pb_note.get("title")

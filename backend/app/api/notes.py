@@ -37,7 +37,7 @@ def list_notes(
     db: Session = Depends(get_db),
 ):
     """List notes with filtering, grouping, and pagination."""
-    query = db.query(Note)
+    query = db.query(Note).filter(Note.deleted_at.is_(None))  # Exclude soft-deleted
 
     # Filters
     if state:
@@ -117,6 +117,7 @@ def list_notes(
             )
 
         # Apply the same filters to the count query
+        count_query = count_query.filter(Note.deleted_at.is_(None))  # Exclude soft-deleted
         if state:
             count_query = count_query.filter(Note.state == state)
         if unassigned:
@@ -183,19 +184,24 @@ def list_notes(
 @router.get("/stats")
 def get_notes_stats(db: Session = Depends(get_db)):
     """Get aggregate note statistics."""
-    total = db.query(Note).count()
-    processed = db.query(Note).filter(Note.state == "processed").count()
-    unprocessed = db.query(Note).filter(Note.state == "unprocessed").count()
+    # Base query excluding soft-deleted notes
+    base_query = db.query(Note).filter(Note.deleted_at.is_(None))
+
+    total = base_query.count()
+    processed = base_query.filter(Note.state == "processed").count()
+    unprocessed = base_query.filter(Note.state == "unprocessed").count()
 
     # Notes by source_origin
     by_source = (
         db.query(Note.source_origin, func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .group_by(Note.source_origin)
         .all()
     )
 
     # Calculate average response time for processed notes
     processed_notes = db.query(Note).filter(
+        Note.deleted_at.is_(None),
         Note.state == "processed",
         Note.processed_at.isnot(None),
         Note.created_at.isnot(None)
@@ -217,32 +223,35 @@ def get_notes_stats(db: Session = Depends(get_db)):
 @router.get("/filter-options")
 def get_filter_options(db: Session = Depends(get_db)):
     """Get available filter options (members, companies, states)."""
-    # Get members who are owners
+    # Get members who are owners (excluding soft-deleted notes)
     owners = (
         db.query(Member.id, Member.name, Member.email)
         .join(Note, Note.owner_id == Member.id)
+        .filter(Note.deleted_at.is_(None))
         .distinct()
         .all()
     )
-    # Get members who are creators
+    # Get members who are creators (excluding soft-deleted notes)
     creators = (
         db.query(Member.id, Member.name, Member.email)
         .join(Note, Note.created_by_id == Member.id)
+        .filter(Note.deleted_at.is_(None))
         .distinct()
         .all()
     )
 
-    # Get companies with notes
+    # Get companies with notes (excluding soft-deleted notes)
     companies = (
         db.query(Company.id, Company.name)
         .join(Note, Note.company_id == Company.id)
+        .filter(Note.deleted_at.is_(None))
         .distinct()
         .order_by(Company.name)
         .all()
     )
 
-    # Get distinct states
-    states = db.query(Note.state).distinct().all()
+    # Get distinct states (excluding soft-deleted notes)
+    states = db.query(Note.state).filter(Note.deleted_at.is_(None)).distinct().all()
 
     return {
         "owners": [{"id": u.id, "name": u.name or u.email} for u in owners],
@@ -255,7 +264,7 @@ def get_filter_options(db: Session = Depends(get_db)):
 @router.get("/{note_id}")
 def get_note(note_id: int, db: Session = Depends(get_db)):
     """Get a single note with relationships."""
-    note = db.query(Note).filter(Note.id == note_id).first()
+    note = db.query(Note).filter(Note.id == note_id, Note.deleted_at.is_(None)).first()
 
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")

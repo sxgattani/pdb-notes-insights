@@ -25,6 +25,7 @@ class Note(Base):
     processed_at = Column(DateTime(timezone=True))  # set when state first becomes 'processed'
     enriched_at = Column(DateTime(timezone=True))  # when full details were fetched
     synced_at = Column(DateTime(timezone=True), server_default=func.now())
+    deleted_at = Column(DateTime(timezone=True), index=True)  # soft delete timestamp
 
     # Foreign keys
     owner_id = Column(Integer, ForeignKey("members.id"), index=True)

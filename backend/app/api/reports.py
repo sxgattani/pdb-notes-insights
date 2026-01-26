@@ -32,26 +32,30 @@ def get_notes_insights(
     period_start = now - timedelta(days=days)
     previous_period_start = period_start - timedelta(days=days)
 
-    # Current period stats
+    # Current period stats (excluding soft-deleted notes)
     current_total = (
         db.query(func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= period_start)
         .scalar() or 0
     )
     current_processed = (
         db.query(func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= period_start)
         .filter(Note.state == "processed")
         .scalar() or 0
     )
     current_unprocessed = (
         db.query(func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= period_start)
         .filter(Note.state == "unprocessed")
         .scalar() or 0
     )
     current_unassigned = (
         db.query(func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= period_start)
         .filter(Note.owner_id.is_(None))
         .scalar() or 0
@@ -60,12 +64,14 @@ def get_notes_insights(
     # Previous period stats (for comparison)
     prev_total = (
         db.query(func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= previous_period_start)
         .filter(Note.created_at < period_start)
         .scalar() or 0
     )
     prev_processed = (
         db.query(func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= previous_period_start)
         .filter(Note.created_at < period_start)
         .filter(Note.state == "processed")
@@ -73,6 +79,7 @@ def get_notes_insights(
     )
     prev_unprocessed = (
         db.query(func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= previous_period_start)
         .filter(Note.created_at < period_start)
         .filter(Note.state == "unprocessed")
@@ -80,6 +87,7 @@ def get_notes_insights(
     )
     prev_unassigned = (
         db.query(func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= previous_period_start)
         .filter(Note.created_at < period_start)
         .filter(Note.owner_id.is_(None))
@@ -93,6 +101,7 @@ def get_notes_insights(
 
     # Calculate average response time for current period
     processed_notes_current = db.query(Note).filter(
+        Note.deleted_at.is_(None),
         Note.created_at >= period_start,
         Note.state == "processed",
         Note.processed_at.isnot(None)
@@ -103,6 +112,7 @@ def get_notes_insights(
 
     # Calculate average response time for previous period
     processed_notes_prev = db.query(Note).filter(
+        Note.deleted_at.is_(None),
         Note.created_at >= previous_period_start,
         Note.created_at < period_start,
         Note.state == "processed",
@@ -131,6 +141,7 @@ def get_notes_insights(
             func.sum(func.cast(Note.state == "unprocessed", Integer)).label("unprocessed"),
         )
         .join(Note, Note.owner_id == Member.id)
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.created_at >= period_start)
         .group_by(Member.id, Member.name, Member.email)
         .all()
@@ -143,6 +154,7 @@ def get_notes_insights(
             func.sum(func.cast(Note.state == "processed", Integer)).label("processed"),
             func.sum(func.cast(Note.state == "unprocessed", Integer)).label("unprocessed"),
         )
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.owner_id.is_(None))
         .filter(Note.created_at >= period_start)
         .first()
@@ -151,6 +163,7 @@ def get_notes_insights(
     # Get SLA breached count per owner (only for notes created within period)
     sla_breached_by_owner = dict(
         db.query(Note.owner_id, func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.state == "unprocessed")
         .filter(Note.created_at >= period_start)
         .filter(Note.created_at < sla_threshold)
@@ -247,8 +260,8 @@ def get_notes_trend(
     now = datetime.utcnow()
     period_start = now - timedelta(days=days)
 
-    # Get all notes in period
-    notes = db.query(Note).filter(Note.created_at >= period_start).all()
+    # Get all notes in period (excluding soft-deleted)
+    notes = db.query(Note).filter(Note.deleted_at.is_(None), Note.created_at >= period_start).all()
 
     # Group by week
     weekly_created = defaultdict(int)
@@ -286,8 +299,9 @@ def get_response_time_stats(
     now = datetime.utcnow()
     period_start = now - timedelta(days=days)
 
-    # Get all processed notes with response times
+    # Get all processed notes with response times (excluding soft-deleted)
     processed_notes = db.query(Note).filter(
+        Note.deleted_at.is_(None),
         Note.created_at >= period_start,
         Note.state == "processed",
         Note.processed_at.isnot(None)
@@ -357,7 +371,7 @@ def get_response_time_stats(
 @router.get("/workload")
 def get_pm_workload(db: Session = Depends(get_db)):
     """Get workload statistics per PM (member)."""
-    # Get note counts per owner
+    # Get note counts per owner (excluding soft-deleted notes)
     note_stats = (
         db.query(
             Member.id,
@@ -367,7 +381,7 @@ def get_pm_workload(db: Session = Depends(get_db)):
             func.sum(func.cast(Note.state == "unprocessed", Integer)).label("unprocessed_notes"),
             func.sum(func.cast(Note.state == "processed", Integer)).label("processed_notes"),
         )
-        .outerjoin(Note, Note.owner_id == Member.id)
+        .outerjoin(Note, and_(Note.owner_id == Member.id, Note.deleted_at.is_(None)))
         .group_by(Member.id, Member.name, Member.email)
         .all()
     )
@@ -403,9 +417,10 @@ def get_user_workload(user_id: int, db: Session = Depends(get_db)):
     if not member:
         raise HTTPException(status_code=404, detail="Member not found")
 
-    # Get user's notes
+    # Get user's notes (excluding soft-deleted)
     notes = (
         db.query(Note)
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.owner_id == user_id)
         .order_by(Note.created_at.desc())
         .limit(50)
@@ -447,8 +462,8 @@ def get_sla_report(
     now = datetime.utcnow()
     sla_threshold = now - timedelta(days=SLA_DAYS)
 
-    # Build query for unprocessed notes
-    query = db.query(Note).filter(Note.state == "unprocessed")
+    # Build query for unprocessed notes (excluding soft-deleted)
+    query = db.query(Note).filter(Note.deleted_at.is_(None), Note.state == "unprocessed")
 
     # Filter by created_at if days parameter is provided
     if days is not None:
@@ -554,7 +569,7 @@ def get_sla_by_owner(db: Session = Depends(get_db)):
     now = datetime.utcnow()
     sla_threshold = now - timedelta(days=SLA_DAYS)
 
-    # Get breached counts per owner
+    # Get breached counts per owner (excluding soft-deleted)
     breached_by_owner = (
         db.query(
             Member.id,
@@ -563,15 +578,17 @@ def get_sla_by_owner(db: Session = Depends(get_db)):
             func.count(Note.id).label("breached_count"),
         )
         .join(Note, Note.owner_id == Member.id)
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.state == "unprocessed")
         .filter(Note.created_at < sla_threshold)
         .group_by(Member.id, Member.name, Member.email)
         .all()
     )
 
-    # Get total unprocessed per owner
+    # Get total unprocessed per owner (excluding soft-deleted)
     unprocessed_by_owner = dict(
         db.query(Note.owner_id, func.count(Note.id))
+        .filter(Note.deleted_at.is_(None))
         .filter(Note.state == "unprocessed")
         .group_by(Note.owner_id)
         .all()
