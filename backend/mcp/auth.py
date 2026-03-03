@@ -6,6 +6,8 @@ from starlette.responses import JSONResponse
 class BearerAuthMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, api_key: str):
         super().__init__(app)
+        if not api_key:
+            raise ValueError("BearerAuthMiddleware requires a non-empty api_key")
         self.api_key = api_key
 
     async def dispatch(self, request: Request, call_next):
