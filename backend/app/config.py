@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     session_secret: str = "change-this-secret-key"
     secure_cookies: bool = False  # Set to True for HTTPS (production)
 
+    # MCP Server
+    mcp_api_key: str = ""
+
     # Sync
     sync_interval_hours: int = 4
     sync_enabled: bool = True
