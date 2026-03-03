@@ -1,6 +1,6 @@
 # ProductBoard Insights
 
-A read-only reporting dashboard for ProductBoard notes with PM workload tracking, SLA monitoring, and scheduled exports.
+A reporting dashboard for ProductBoard notes with PM workload tracking, SLA monitoring, and Claude.ai MCP integration.
 
 ## Features
 
@@ -10,13 +10,15 @@ A read-only reporting dashboard for ProductBoard notes with PM workload tracking
 - **PM Workload**: Track workload distribution across team members
 - **SLA Monitoring**: Track 5-day SLA compliance for note processing
 - **Exports**: Generate PDF and JSON reports on-demand or scheduled
+- **MCP Server**: Connect Claude.ai for ad-hoc analysis, investigation, and bulk operations via natural language
 
 ## Tech Stack
 
 - **Backend**: Python, FastAPI, SQLAlchemy, APScheduler
 - **Frontend**: React, TypeScript, TanStack Query, Tailwind CSS
-- **Database**: PostgreSQL 15
-- **Containerization**: Docker, Docker Compose
+- **Database**: SQLite (fly.io persistent volume)
+- **Deployment**: fly.io
+- **MCP**: [Model Context Protocol](https://modelcontextprotocol.io) via `mcp[cli]`
 
 ## Quick Start
 
@@ -84,6 +86,60 @@ See `.env.example` for all configuration options:
 | AUTH_PASSWORD | Login password | changeme |
 | SYNC_INTERVAL_HOURS | Hours between syncs | 4 |
 | EXPORT_SCHEDULE_HOUR | Hour for nightly exports (UTC) | 2 |
+| MCP_API_KEY | Bearer token for MCP server auth (leave empty to disable) | (disabled) |
+
+## MCP Server
+
+The app exposes an MCP server at `/mcp` using the [Model Context Protocol](https://modelcontextprotocol.io) (Streamable HTTP transport). Connect Claude.ai to query and act on ProductBoard data via natural language.
+
+### Connecting Claude.ai
+
+1. Go to Claude.ai → Settings → Integrations → Add MCP Server
+2. URL: `https://notes-hq.fly.dev/mcp`
+3. Auth: Bearer token → paste your `MCP_API_KEY` value
+
+### Available Tools (15)
+
+**Query — Notes**
+| Tool | Description |
+|------|-------------|
+| `list_notes` | Filter, sort, and group notes by owner/creator/company |
+| `get_note` | Full note detail: content, linked features, comments |
+| `search_notes` | Full-text search on title + content |
+| `get_notes_stats` | All-time totals: total, processed, unprocessed, avg response time |
+| `list_members` | All PMs/members with IDs and emails |
+| `list_companies` | All companies with IDs |
+| `list_features` | Features with linked note counts |
+
+**Analytics — Reports**
+| Tool | Description |
+|------|-------------|
+| `get_notes_insights` | Summary cards + owner performance table |
+| `get_notes_trend` | Weekly created vs processed trend |
+| `get_response_time_stats` | Distribution buckets + per-PM breakdown |
+| `get_sla_report` | Breached / at-risk / on-track breakdown by owner |
+| `get_pm_workload` | Unprocessed backlog per PM |
+
+**Actions — Sync**
+| Tool | Description |
+|------|-------------|
+| `trigger_sync` | Kick off a ProductBoard sync |
+| `get_sync_status` | Check if sync is running, last completed time |
+| `get_sync_history` | Last N sync runs with status and record counts |
+
+### Enabling on fly.io
+
+```bash
+fly secrets set MCP_API_KEY=<your-token> --app notes-hq
+fly deploy --app notes-hq
+```
+
+### Example Use Cases
+
+- "Which companies have the most SLA-breached notes?"
+- "Show me all unprocessed notes assigned to [PM] and summarize them"
+- "Trigger a sync and tell me when it finishes"
+- "What's the average response time trend over the last 30 days?"
 
 ## API Endpoints
 
