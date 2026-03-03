@@ -144,9 +144,10 @@ if FRONTEND_DIR.exists():
     # Catch-all route for client-side routing - must be last
     @app.get("/{full_path:path}")
     async def serve_frontend(request: Request, full_path: str):
-        # Don't serve frontend for API routes
-        if full_path.startswith("api/"):
-            return {"detail": "Not Found"}
+        # Return 404 for API and well-known discovery paths (not React routes)
+        if full_path.startswith("api/") or full_path.startswith(".well-known/"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "Not Found"}, status_code=404)
 
         # Serve index.html for all other routes (React Router handles routing)
         return FileResponse(FRONTEND_DIR / "index.html")
