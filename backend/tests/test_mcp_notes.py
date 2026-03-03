@@ -114,3 +114,40 @@ def test_list_features(sample_data):
     assert len(result) == 1
     assert result[0]["name"] == "Dark Mode"
     assert result[0]["note_count"] == 1
+
+
+def test_soft_deleted_note_excluded(db):
+    """Soft-deleted notes must not appear in any query."""
+    member = Member(id=10, email="pm2@example.com", name="Bob PM", pb_id="m-10")
+    deleted_note = Note(
+        id=10, pb_id="n-10", title="Deleted note", content="Should not appear",
+        state="unprocessed", created_at=datetime(2025, 1, 20),
+        deleted_at=datetime(2025, 2, 1),
+    )
+    db.add_all([member, deleted_note])
+    db.commit()
+    result = _list_notes_impl(db)
+    ids = [n["id"] for n in result["data"]]
+    assert 10 not in ids
+    search_result = _search_notes_impl(db, query="Deleted note")
+    assert search_result["pagination"]["total"] == 0
+
+
+def test_group_by_owner_with_unassigned(db):
+    """group_by=owner should include 'Unassigned' for notes with no owner."""
+    unassigned_note = Note(
+        id=20, pb_id="n-20", title="Orphan note", content="No owner",
+        state="unprocessed", created_at=datetime(2025, 1, 5),
+        owner_id=None,
+    )
+    db.add(unassigned_note)
+    db.commit()
+    result = _list_notes_impl(db, group_by="owner")
+    assert "Unassigned" in result["group_counts"]
+
+
+def test_notes_stats_avg_response_time(sample_data):
+    """avg_response_time_days should be calculated from processed notes."""
+    result = _get_notes_stats_impl(sample_data)
+    # note2 was created 2025-01-15, processed 2025-01-18 = 3 days
+    assert result["avg_response_time_days"] == 3.0

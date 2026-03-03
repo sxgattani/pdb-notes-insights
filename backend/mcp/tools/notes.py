@@ -16,10 +16,7 @@ def _member_dict(member: Optional[Member]) -> Optional[dict]:
     return {"id": member.id, "name": member.name, "email": member.email}
 
 
-def _note_dict(note: Note, db: Session) -> dict:
-    owner = db.get(Member, note.owner_id) if note.owner_id else None
-    creator = db.get(Member, note.created_by_id) if note.created_by_id else None
-    company = db.get(Company, note.company_id) if note.company_id else None
+def _note_dict(note: Note) -> dict:
     response_time = None
     if note.processed_at and note.created_at:
         response_time = round((note.processed_at - note.created_at).total_seconds() / 86400, 1)
@@ -36,9 +33,9 @@ def _note_dict(note: Note, db: Session) -> dict:
         "updated_at": note.updated_at.isoformat() if note.updated_at else None,
         "processed_at": note.processed_at.isoformat() if note.processed_at else None,
         "response_time_days": response_time,
-        "owner": _member_dict(owner),
-        "creator": _member_dict(creator),
-        "company": {"id": company.id, "name": company.name} if company else None,
+        "owner": _member_dict(note.owner),
+        "creator": _member_dict(note.created_by),
+        "company": {"id": note.company.id, "name": note.company.name} if note.company else None,
     }
 
 
@@ -68,19 +65,23 @@ def _list_notes_impl(
     if company_id:
         query = query.filter(Note.company_id == company_id)
     if created_after:
-        query = query.filter(Note.created_at >= created_after)
+        dt_after = datetime.strptime(created_after, "%Y-%m-%d")
+        query = query.filter(Note.created_at >= dt_after)
     if created_before:
         dt = datetime.strptime(created_before, "%Y-%m-%d") + timedelta(days=1)
         query = query.filter(Note.created_at < dt)
 
-    sort_col = getattr(Note, sort, Note.created_at)
+    ALLOWED_SORT_COLUMNS = {"created_at", "updated_at", "processed_at", "state", "title"}
+    if sort not in ALLOWED_SORT_COLUMNS:
+        sort = "created_at"
+    sort_col = getattr(Note, sort)
     query = query.order_by(sort_col.desc() if order == "desc" else sort_col.asc())
 
     # Group counts
     group_counts = None
     if group_by in ("owner", "creator", "company"):
         if group_by == "owner":
-            rows = (
+            rows_query = (
                 db.query(
                     func.coalesce(Member.name, Member.email, "Unassigned").label("g"),
                     func.count(Note.id),
@@ -88,11 +89,9 @@ def _list_notes_impl(
                 .select_from(Note)
                 .outerjoin(Member, Note.owner_id == Member.id)
                 .filter(Note.deleted_at.is_(None))
-                .group_by("g")
-                .all()
             )
         elif group_by == "creator":
-            rows = (
+            rows_query = (
                 db.query(
                     func.coalesce(Member.name, Member.email, "Unknown").label("g"),
                     func.count(Note.id),
@@ -100,11 +99,9 @@ def _list_notes_impl(
                 .select_from(Note)
                 .outerjoin(Member, Note.created_by_id == Member.id)
                 .filter(Note.deleted_at.is_(None))
-                .group_by("g")
-                .all()
             )
         else:  # company
-            rows = (
+            rows_query = (
                 db.query(
                     func.coalesce(Company.name, "No Company").label("g"),
                     func.count(Note.id),
@@ -112,15 +109,29 @@ def _list_notes_impl(
                 .select_from(Note)
                 .outerjoin(Company, Note.company_id == Company.id)
                 .filter(Note.deleted_at.is_(None))
-                .group_by("g")
-                .all()
             )
+        # Apply same filters as main query to group counts
+        if state:
+            rows_query = rows_query.filter(Note.state == state)
+        if owner_id:
+            rows_query = rows_query.filter(Note.owner_id == owner_id)
+        if creator_id:
+            rows_query = rows_query.filter(Note.created_by_id == creator_id)
+        if company_id:
+            rows_query = rows_query.filter(Note.company_id == company_id)
+        if created_after:
+            dt_after = datetime.strptime(created_after, "%Y-%m-%d")
+            rows_query = rows_query.filter(Note.created_at >= dt_after)
+        if created_before:
+            dt = datetime.strptime(created_before, "%Y-%m-%d") + timedelta(days=1)
+            rows_query = rows_query.filter(Note.created_at < dt)
+        rows = rows_query.group_by("g").all()
         group_counts = {name: count for name, count in rows}
 
     total = query.count()
     notes = query.offset((page - 1) * limit).limit(limit).all()
     return {
-        "data": [_note_dict(n, db) for n in notes],
+        "data": [_note_dict(n) for n in notes],
         "group_counts": group_counts,
         "pagination": {"page": page, "limit": limit, "total": total, "pages": (total + limit - 1) // limit},
     }
@@ -130,7 +141,7 @@ def _get_note_impl(db: Session, note_id: int) -> Optional[dict]:
     note = db.query(Note).filter(Note.id == note_id, Note.deleted_at.is_(None)).first()
     if not note:
         return None
-    result = _note_dict(note, db)
+    result = _note_dict(note)
     result["features"] = [
         {"id": f.id, "pb_id": f.pb_id, "name": f.name, "display_url": f.display_url, "importance": importance}
         for f, importance in (
@@ -145,7 +156,7 @@ def _get_note_impl(db: Session, note_id: int) -> Optional[dict]:
             "id": c.id,
             "content": c.content,
             "timestamp": c.timestamp.isoformat() if c.timestamp else None,
-            "member": _member_dict(db.get(Member, c.member_id)) if c.member_id else None,
+            "member": _member_dict(c.member) if c.member_id else None,
         }
         for c in (
             db.query(NoteComment)
@@ -170,7 +181,7 @@ def _search_notes_impl(db: Session, query: str, state: Optional[str] = None, pag
     total = q.count()
     notes = q.offset((page - 1) * limit).limit(limit).all()
     return {
-        "data": [_note_dict(n, db) for n in notes],
+        "data": [_note_dict(n) for n in notes],
         "pagination": {"page": page, "limit": limit, "total": total, "pages": (total + limit - 1) // limit},
     }
 
