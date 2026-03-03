@@ -20,6 +20,6 @@ def create_mcp_app(api_key: str):
     raw_app = server.streamable_http_app()
 
     return Starlette(
-        routes=[Mount("/mcp", app=raw_app)],
+        routes=[Mount("/", app=raw_app)],
         middleware=[Middleware(BearerAuthMiddleware, api_key=api_key)],
     )

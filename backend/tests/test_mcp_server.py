@@ -11,10 +11,12 @@ pytestmark = pytest.mark.skipif(
     reason="mcp library requires Python 3.10+"
 )
 
-
-def test_mcp_app_returns_401_without_token():
+if sys.version_info >= (3, 10):
     from mcp.server import create_mcp_app
     from starlette.testclient import TestClient
+
+
+def test_mcp_app_returns_401_without_token():
     app = create_mcp_app(api_key="testsecret")
     client = TestClient(app, raise_server_exceptions=False)
     response = client.get("/")
@@ -22,8 +24,6 @@ def test_mcp_app_returns_401_without_token():
 
 
 def test_mcp_app_accessible_with_token():
-    from mcp.server import create_mcp_app
-    from starlette.testclient import TestClient
     app = create_mcp_app(api_key="testsecret")
     client = TestClient(app, raise_server_exceptions=False)
     response = client.post("/mcp", headers={"Authorization": "Bearer testsecret"}, json={})
