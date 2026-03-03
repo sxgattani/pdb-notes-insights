@@ -16,6 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 # Copy backend code
 COPY backend/app ./app
+COPY backend/mcp ./mcp
 COPY backend/alembic ./alembic
 COPY backend/alembic.ini ./
 COPY backend/start.sh ./
