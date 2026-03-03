@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -22,6 +23,10 @@ _possible_frontend_dirs = [
 ]
 FRONTEND_DIR = next((p for p in _possible_frontend_dirs if p.exists()), _possible_frontend_dirs[0])
 
+# MCP raw app (FastMCP's Starlette with lifespan). Set below if MCP is enabled;
+# referenced in lifespan() at runtime after module-level init completes.
+_mcp_raw_app = None
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -29,14 +34,61 @@ async def lifespan(app: FastAPI):
     # Create database tables
     Base.metadata.create_all(bind=engine)
 
-    # Startup
+    # Start MCP session manager lifespan (initialises anyio task group).
+    # FastMCP's streamable_http_app() returns a Starlette app whose lifespan
+    # calls session_manager.run(). We drive that lifespan manually here so it
+    # shares the running event loop with the rest of the app.
+    _mcp_task = None
+    _mcp_shutdown_event = None
+    _mcp_shutdown_done = None
+    if _mcp_raw_app is not None:
+        started = asyncio.Event()
+        _mcp_shutdown_event = asyncio.Event()
+        _mcp_shutdown_done = asyncio.Event()
+
+        async def _run_mcp_lifespan():
+            async def recv():
+                if not started.is_set():
+                    return {"type": "lifespan.startup"}
+                await _mcp_shutdown_event.wait()
+                return {"type": "lifespan.shutdown"}
+
+            async def send(msg):
+                if msg["type"] == "lifespan.startup.complete":
+                    started.set()
+                elif msg["type"] == "lifespan.shutdown.complete":
+                    _mcp_shutdown_done.set()
+
+            scope = {"type": "lifespan", "asgi": {"version": "3.0", "spec_version": "2.0"}}
+            await _mcp_raw_app(scope, recv, send)
+
+        _mcp_task = asyncio.create_task(_run_mcp_lifespan())
+        try:
+            await asyncio.wait_for(started.wait(), timeout=15.0)
+        except asyncio.TimeoutError:
+            _mcp_task.cancel()
+            raise RuntimeError("MCP server failed to start within 15 s")
+
+    # App startup
     register_sync_job()
     start_scheduler()
 
     yield
 
-    # Shutdown
+    # App shutdown
     shutdown_scheduler()
+
+    if _mcp_task is not None:
+        _mcp_shutdown_event.set()
+        try:
+            await asyncio.wait_for(_mcp_shutdown_done.wait(), timeout=5.0)
+        except asyncio.TimeoutError:
+            pass
+        _mcp_task.cancel()
+        try:
+            await _mcp_task
+        except asyncio.CancelledError:
+            pass
 
 
 app = FastAPI(
@@ -76,10 +128,12 @@ def health_check():
     return {"status": "healthy"}
 
 
-# Mount MCP server at /mcp (before frontend catch-all route)
+# Route /mcp paths via ASGI middleware (bypasses FastAPI routing) and start
+# the MCP session manager's lifespan from within our own lifespan above.
 if settings.mcp_api_key:
-    from notes_mcp.server import create_mcp_app
-    app.mount("/mcp", create_mcp_app(api_key=settings.mcp_api_key))
+    from notes_mcp.server import create_mcp_components
+    _mcp_raw_app, _MCPMiddleware = create_mcp_components(api_key=settings.mcp_api_key)
+    app.add_middleware(_MCPMiddleware)
 
 
 # Serve frontend static files (if built)
