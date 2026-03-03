@@ -76,6 +76,12 @@ def health_check():
     return {"status": "healthy"}
 
 
+# Mount MCP server at /mcp (before frontend catch-all route)
+if settings.mcp_api_key:
+    from mcp.server import create_mcp_app
+    app.mount("/mcp", create_mcp_app(api_key=settings.mcp_api_key))
+
+
 # Serve frontend static files (if built)
 if FRONTEND_DIR.exists():
     # Serve static assets (JS, CSS, images)
