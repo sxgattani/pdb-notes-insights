@@ -19,7 +19,17 @@ def create_mcp_app(api_key: str):
 
     raw_app = server.streamable_http_app()
 
+    # FastMCP registers its route at /mcp internally, but FastAPI strips the
+    # /mcp mount prefix before forwarding. This wrapper re-adds it so the
+    # route matches: "/" → "/mcp", "/foo" → "/mcp/foo".
+    async def path_fixed_app(scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            scope = dict(scope)
+            path = scope.get("path", "/")
+            scope["path"] = "/mcp" + ("" if path == "/" else path)
+        await raw_app(scope, receive, send)
+
     return Starlette(
-        routes=[Mount("/", app=raw_app)],
+        routes=[Mount("/", app=path_fixed_app)],
         middleware=[Middleware(BearerAuthMiddleware, api_key=api_key)],
     )
