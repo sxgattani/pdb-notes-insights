@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timedelta
 from typing import Optional
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, or_
 
 from app.models import Note, Member, Company, Feature, NoteFeature, NoteComment
@@ -129,7 +129,17 @@ def _list_notes_impl(
         group_counts = {name: count for name, count in rows}
 
     total = query.count()
-    notes = query.offset((page - 1) * limit).limit(limit).all()
+    notes = (
+        query
+        .options(
+            joinedload(Note.owner),
+            joinedload(Note.created_by),
+            joinedload(Note.company),
+        )
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
     return {
         "data": [_note_dict(n) for n in notes],
         "group_counts": group_counts,
@@ -179,7 +189,17 @@ def _search_notes_impl(db: Session, query: str, state: Optional[str] = None, pag
         q = q.filter(Note.state == state)
     q = q.order_by(Note.created_at.desc())
     total = q.count()
-    notes = q.offset((page - 1) * limit).limit(limit).all()
+    notes = (
+        q
+        .options(
+            joinedload(Note.owner),
+            joinedload(Note.created_by),
+            joinedload(Note.company),
+        )
+        .offset((page - 1) * limit)
+        .limit(limit)
+        .all()
+    )
     return {
         "data": [_note_dict(n) for n in notes],
         "pagination": {"page": page, "limit": limit, "total": total, "pages": (total + limit - 1) // limit},
