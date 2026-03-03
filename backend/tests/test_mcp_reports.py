@@ -84,3 +84,48 @@ def test_pm_workload(sample_data):
     assert result["summary"]["total_unprocessed"] == 2
     alice = next(w for w in result["data"] if w["name"] == "Alice PM")
     assert alice["unprocessed_notes"] == 2
+
+
+def test_soft_deleted_note_excluded_from_insights(sample_data):
+    """Soft-deleted notes must not appear in insights counts."""
+    from datetime import datetime
+    deleted = Note(
+        id=99, pb_id="n-99", title="Deleted", state="unprocessed",
+        created_at=datetime.utcnow() - timedelta(days=5),
+        deleted_at=datetime.utcnow(),
+        owner_id=1,
+    )
+    sample_data.add(deleted)
+    sample_data.commit()
+    result = _get_notes_insights_impl(sample_data, days=90)
+    # Still 3 notes, not 4
+    assert result["summary"]["created"]["value"] == 3
+
+
+def test_sla_at_risk_note(db):
+    """Notes 4-5 days old should appear in at_risk, not breached or on_track."""
+    note = Note(
+        id=50, pb_id="n-50", title="At risk", state="unprocessed",
+        created_at=datetime.utcnow() - timedelta(days=4, hours=12),
+    )
+    db.add(note)
+    db.commit()
+    result = _get_sla_report_impl(db)
+    assert result["summary"]["at_risk"] == 1
+    assert result["summary"]["breached"] == 0
+
+
+def test_insights_days_filter(db):
+    """Notes older than the days window should be excluded."""
+    old_note = Note(
+        id=60, pb_id="n-60", title="Old note", state="unprocessed",
+        created_at=datetime.utcnow() - timedelta(days=100),
+    )
+    recent_note = Note(
+        id=61, pb_id="n-61", title="Recent note", state="unprocessed",
+        created_at=datetime.utcnow() - timedelta(days=10),
+    )
+    db.add_all([old_note, recent_note])
+    db.commit()
+    result = _get_notes_insights_impl(db, days=90)
+    assert result["summary"]["created"]["value"] == 1  # only recent note

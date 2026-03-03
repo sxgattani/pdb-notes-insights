@@ -49,7 +49,7 @@ def _get_notes_insights_impl(db: Session, days: int = 90) -> dict:
         Note.deleted_at.is_(None), Note.created_at >= period_start,
         Note.state == "processed", Note.processed_at.isnot(None)
     ).all()
-    rts = [_calc_rt(n) for n in proc_notes if _calc_rt(n) is not None]
+    rts = [rt for n in proc_notes if (rt := _calc_rt(n)) is not None]
     avg_rt = round(sum(rts) / len(rts), 1) if rts else None
 
     # Avg response time previous period
@@ -108,6 +108,20 @@ def _get_notes_insights_impl(db: Session, days: int = 90) -> dict:
             "avg_response_time": round(sum(orts) / len(orts), 1) if orts else None,
             "sla_breached": sla_breached_map.get(mid, 0),
         })
+    # Add unassigned notes to by_owner
+    unassigned_assigned = count_where(Note.created_at >= period_start, Note.owner_id.is_(None))
+    if unassigned_assigned > 0:
+        unassigned_processed = count_where(Note.created_at >= period_start, Note.owner_id.is_(None), Note.state == "processed")
+        unassigned_unprocessed = count_where(Note.created_at >= period_start, Note.owner_id.is_(None), Note.state == "unprocessed")
+        by_owner.append({
+            "id": None, "name": "Unassigned",
+            "assigned": unassigned_assigned,
+            "processed": unassigned_processed,
+            "unprocessed": unassigned_unprocessed,
+            "progress": round(unassigned_processed / unassigned_assigned * 100) if unassigned_assigned else 0,
+            "avg_response_time": None,
+            "sla_breached": sla_breached_map.get(None, 0),
+        })
     by_owner.sort(key=lambda x: x["assigned"], reverse=True)
 
     return {
@@ -152,7 +166,7 @@ def _get_response_time_stats_impl(db: Session, days: int = 90) -> dict:
         Note.deleted_at.is_(None), Note.created_at >= period_start,
         Note.state == "processed", Note.processed_at.isnot(None)
     ).all()
-    rts = [(n, _calc_rt(n)) for n in notes if _calc_rt(n) is not None]
+    rts = [(n, rt) for n in notes if (rt := _calc_rt(n)) is not None]
     if not rts:
         return {"average_days": None, "median_days": None, "distribution": [], "by_owner": []}
     vals = sorted(r for _, r in rts)
@@ -172,9 +186,11 @@ def _get_response_time_stats_impl(db: Session, days: int = 90) -> dict:
     for note, rt in rts:
         if note.owner_id:
             owner_data[note.owner_id].append(rt)
+    owner_ids = set(owner_data.keys())
+    members_map = {m.id: m for m in db.query(Member).filter(Member.id.in_(owner_ids)).all()} if owner_ids else {}
     by_owner = []
     for oid, orts in owner_data.items():
-        m = db.get(Member, oid)
+        m = members_map.get(oid)
         if m:
             by_owner.append({
                 "id": oid, "name": m.name or m.email,
@@ -237,16 +253,29 @@ def _get_sla_report_impl(db: Session, days: Optional[int] = None) -> dict:
 
 
 def _get_pm_workload_impl(db: Session) -> dict:
-    members = db.query(Member).all()
-    workload = []
-    for m in members:
-        total = db.query(func.count(Note.id)).filter(Note.owner_id == m.id, Note.deleted_at.is_(None)).scalar() or 0
-        unproc = db.query(func.count(Note.id)).filter(Note.owner_id == m.id, Note.deleted_at.is_(None), Note.state == "unprocessed").scalar() or 0
-        proc = db.query(func.count(Note.id)).filter(Note.owner_id == m.id, Note.deleted_at.is_(None), Note.state == "processed").scalar() or 0
-        workload.append({
-            "id": m.id, "name": m.name or m.email, "email": m.email,
-            "total_notes": total, "unprocessed_notes": unproc, "processed_notes": proc,
-        })
+    from sqlalchemy import case
+    rows = (
+        db.query(
+            Member.id,
+            Member.name,
+            Member.email,
+            func.count(Note.id).label("total"),
+            func.sum(case((Note.state == "unprocessed", 1), else_=0)).label("unprocessed"),
+            func.sum(case((Note.state == "processed", 1), else_=0)).label("processed"),
+        )
+        .outerjoin(Note, (Note.owner_id == Member.id) & (Note.deleted_at.is_(None)))
+        .group_by(Member.id, Member.name, Member.email)
+        .all()
+    )
+    workload = [
+        {
+            "id": mid, "name": name or email, "email": email,
+            "total_notes": total or 0,
+            "unprocessed_notes": unprocessed or 0,
+            "processed_notes": processed or 0,
+        }
+        for mid, name, email, total, unprocessed, processed in rows
+    ]
     workload.sort(key=lambda x: x["unprocessed_notes"], reverse=True)
     return {
         "data": workload,
