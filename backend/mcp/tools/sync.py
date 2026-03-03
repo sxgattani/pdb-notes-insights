@@ -11,6 +11,8 @@ from app.database import SessionLocal
 
 logger = logging.getLogger(__name__)
 
+_background_tasks: set = set()
+
 
 def _fmt_dt(dt) -> Optional[str]:
     if not dt:
@@ -90,12 +92,12 @@ def register_sync_tools(mcp):
                 sdb.close()
 
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.create_task(_run())
-            else:
-                loop.run_until_complete(_run())
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(_run())
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
         except RuntimeError:
+            # No running event loop — shouldn't happen in FastAPI context
             asyncio.run(_run())
 
         return json.dumps({"triggered": True, "message": "Sync started"})
