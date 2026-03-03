@@ -12,7 +12,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 if sys.version_info >= (3, 10):
-    from mcp.server import create_mcp_app
+    from notes_mcp.server import create_mcp_app
     from starlette.testclient import TestClient
 
 

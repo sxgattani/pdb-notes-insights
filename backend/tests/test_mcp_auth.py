@@ -5,7 +5,7 @@ from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 from starlette.middleware import Middleware
 
-from mcp.auth import BearerAuthMiddleware
+from notes_mcp.auth import BearerAuthMiddleware
 
 
 def homepage(request):

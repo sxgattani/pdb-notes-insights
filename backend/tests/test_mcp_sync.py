@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import SyncHistory
-from mcp.tools.sync import _get_sync_status_impl, _get_sync_history_impl
+from notes_mcp.tools.sync import _get_sync_status_impl, _get_sync_history_impl
 
 
 @pytest.fixture

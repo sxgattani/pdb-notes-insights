@@ -3,10 +3,10 @@ from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.routing import Mount
 
-from mcp.auth import BearerAuthMiddleware
-from mcp.tools.notes import register_note_tools
-from mcp.tools.reports import register_report_tools
-from mcp.tools.sync import register_sync_tools
+from notes_mcp.auth import BearerAuthMiddleware
+from notes_mcp.tools.notes import register_note_tools
+from notes_mcp.tools.reports import register_report_tools
+from notes_mcp.tools.sync import register_sync_tools
 
 
 def create_mcp_app(api_key: str):

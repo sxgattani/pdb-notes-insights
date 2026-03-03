@@ -5,7 +5,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Note, Member, Company
-from mcp.tools.reports import (
+from notes_mcp.tools.reports import (
     _get_notes_insights_impl,
     _get_notes_trend_impl,
     _get_response_time_stats_impl,

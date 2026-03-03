@@ -6,7 +6,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base
 from app.models import Note, Member, Company, Feature, NoteFeature
-from mcp.tools.notes import (
+from notes_mcp.tools.notes import (
     _list_notes_impl,
     _get_note_impl,
     _search_notes_impl,
