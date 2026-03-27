@@ -351,8 +351,9 @@ class NotesSyncer(BaseSyncer[Note]):
                 feature = Feature(pb_id=feature_pb_id)
                 self.db.add(feature)
 
-            # Fetch feature details (name, display_url) if not yet populated
-            if not feature.name and self._features_api:
+            # Fetch feature details (name, display_url) if not yet populated or if url is wrong (API endpoint instead of UI)
+            needs_fetch = not feature.name or (feature.display_url and "api.productboard.com" in feature.display_url)
+            if needs_fetch and self._features_api:
                 try:
                     pb_feature = await self._features_api.get_feature(feature_pb_id)
                     if pb_feature:
