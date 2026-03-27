@@ -31,6 +31,10 @@ def list_notes(
     created_before: Optional[str] = None,
     updated_after: Optional[str] = None,
     updated_before: Optional[str] = None,
+    opportunity_type: Optional[str] = None,
+    product_area: Optional[str] = None,
+    customer_impact: Optional[str] = None,
+    functionality_timeline: Optional[str] = None,
     group_by: Optional[str] = None,
     sort: str = "created_at",
     order: str = "desc",
@@ -73,6 +77,15 @@ def list_notes(
         query = query.filter(Note.id.in_(notes_with_features))
     elif has_features is False:
         query = query.filter(Note.id.notin_(notes_with_features))
+
+    if opportunity_type:
+        query = query.filter(Note.opportunity_type == opportunity_type)
+    if product_area:
+        query = query.filter(Note.product_area == product_area)
+    if customer_impact:
+        query = query.filter(Note.customer_impact == customer_impact)
+    if functionality_timeline:
+        query = query.filter(Note.functionality_timeline == functionality_timeline)
 
     # Sorting - handle both direct columns and related fields
     if sort == "company":
@@ -150,6 +163,14 @@ def list_notes(
             count_query = count_query.filter(Note.id.in_(notes_with_features))
         elif has_features is False:
             count_query = count_query.filter(Note.id.notin_(notes_with_features))
+        if opportunity_type:
+            count_query = count_query.filter(Note.opportunity_type == opportunity_type)
+        if product_area:
+            count_query = count_query.filter(Note.product_area == product_area)
+        if customer_impact:
+            count_query = count_query.filter(Note.customer_impact == customer_impact)
+        if functionality_timeline:
+            count_query = count_query.filter(Note.functionality_timeline == functionality_timeline)
 
         # Group and get counts
         count_results = count_query.group_by('group_name').all()
@@ -361,6 +382,10 @@ def _note_to_dict(note: Note, db: Session = None, has_features: Optional[bool] =
         "owner_id": note.owner_id,
         "created_by_id": note.created_by_id,
         "company_id": note.company_id,
+        "opportunity_type": note.opportunity_type,
+        "product_area": note.product_area,
+        "customer_impact": note.customer_impact,
+        "functionality_timeline": note.functionality_timeline,
     }
 
     # Include relationships if db session provided

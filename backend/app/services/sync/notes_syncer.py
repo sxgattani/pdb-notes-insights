@@ -4,6 +4,7 @@ from typing import Optional
 import logging
 
 from sqlalchemy.orm import Session
+from bs4 import BeautifulSoup
 
 from app.services.sync.base import BaseSyncer
 from app.services.sync.members_syncer import get_or_create_member
@@ -11,6 +12,39 @@ from app.models import Note, Member, Company, Feature, NoteFeature, NoteComment
 from app.integrations.productboard import ProductBoardClient, NotesAPI, CompaniesAPI, FeaturesAPI
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_content_fields(html: str) -> dict:
+    """Parse structured form fields from note HTML content."""
+    if not html:
+        return {}
+
+    soup = BeautifulSoup(html, "html.parser")
+    result = {}
+
+    # Field label → result key mapping
+    field_map = {
+        "opportunity type": "opportunity_type",
+        "which part of our product does your request relate to": "product_area",
+        "customer impact": "customer_impact",
+        "functionality requested within": "functionality_timeline",
+    }
+
+    # Find all elements, look for bold/strong text matching a field label
+    # then take the next sibling paragraph's text as the value
+    for tag in soup.find_all(["strong", "b"]):
+        text = tag.get_text(strip=True).lower()
+        for label, key in field_map.items():
+            if text == label:
+                # Value is the next element in document order
+                value_tag = tag.find_next()
+                if value_tag:
+                    value = value_tag.get_text(strip=True)
+                    if value and value.lower() != label:
+                        result[key] = value
+                break
+
+    return result
 
 
 class NotesSyncer(BaseSyncer[Note]):
@@ -183,6 +217,14 @@ class NotesSyncer(BaseSyncer[Note]):
         # Update external display URL
         note.external_display_url = pb_note.get("externalDisplayUrl")
 
+        # Parse structured form fields from HTML content
+        if note.content:
+            parsed = _parse_content_fields(note.content)
+            note.opportunity_type = parsed.get("opportunity_type")
+            note.product_area = parsed.get("product_area")
+            note.customer_impact = parsed.get("customer_impact")
+            note.functionality_timeline = parsed.get("functionality_timeline")
+
         # Sync comments (most recent 5)
         self._sync_note_comments(note, pb_note.get("comments", []))
 
@@ -258,6 +300,13 @@ class NotesSyncer(BaseSyncer[Note]):
         # Basic fields
         note.title = pb_note.get("title")
         note.content = pb_note.get("content")
+        # Parse structured form fields from HTML content
+        if note.content:
+            parsed = _parse_content_fields(note.content)
+            note.opportunity_type = parsed.get("opportunity_type")
+            note.product_area = parsed.get("product_area")
+            note.customer_impact = parsed.get("customer_impact")
+            note.functionality_timeline = parsed.get("functionality_timeline")
         note.state = pb_note.get("state", "unprocessed")
         note.display_url = pb_note.get("displayUrl")
         note.external_display_url = pb_note.get("externalDisplayUrl")
