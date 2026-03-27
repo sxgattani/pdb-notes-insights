@@ -34,6 +34,7 @@ def list_notes(
     group_by: Optional[str] = None,
     sort: str = "created_at",
     order: str = "desc",
+    has_features: Optional[bool] = None,
     db: Session = Depends(get_db),
 ):
     """List notes with filtering, grouping, and pagination."""
@@ -65,6 +66,14 @@ def list_notes(
         # Add 1 day to include all notes updated on the specified date
         updated_before_dt = datetime.strptime(updated_before, "%Y-%m-%d") + timedelta(days=1)
         query = query.filter(Note.updated_at < updated_before_dt)
+
+    # has_features filter
+    if has_features is True:
+        notes_with_features = db.query(NoteFeature.note_id).distinct()
+        query = query.filter(Note.id.in_(notes_with_features))
+    elif has_features is False:
+        notes_with_features = db.query(NoteFeature.note_id).distinct()
+        query = query.filter(Note.id.notin_(notes_with_features))
 
     # Sorting - handle both direct columns and related fields
     if sort == "company":
@@ -362,5 +371,9 @@ def _note_to_dict(note: Note, db: Session = None) -> dict:
             result["company"] = {"id": company.id, "name": company.name} if company else None
         else:
             result["company"] = None
+
+        result["has_features"] = db.query(NoteFeature).filter(NoteFeature.note_id == note.id).first() is not None
+    else:
+        result["has_features"] = False
 
     return result
