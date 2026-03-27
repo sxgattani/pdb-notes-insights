@@ -146,6 +146,10 @@ def list_notes(
         if updated_before:
             updated_before_dt = datetime.strptime(updated_before, "%Y-%m-%d") + timedelta(days=1)
             count_query = count_query.filter(Note.updated_at < updated_before_dt)
+        if has_features is True:
+            count_query = count_query.filter(Note.id.in_(notes_with_features))
+        elif has_features is False:
+            count_query = count_query.filter(Note.id.notin_(notes_with_features))
 
         # Group and get counts
         count_results = count_query.group_by('group_name').all()
