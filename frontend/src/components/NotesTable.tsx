@@ -173,6 +173,34 @@ export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy
           );
         },
       }),
+      columnHelper.accessor('opportunity_type', {
+        header: 'Opp. Type',
+        cell: (info) => {
+          const val = info.getValue();
+          return val ? <span>{val}</span> : <span className="text-gray-400">-</span>;
+        },
+      }),
+      columnHelper.accessor('product_area', {
+        header: 'Product Area',
+        cell: (info) => {
+          const val = info.getValue();
+          return val ? <span>{val}</span> : <span className="text-gray-400">-</span>;
+        },
+      }),
+      columnHelper.accessor('customer_impact', {
+        header: 'Customer Impact',
+        cell: (info) => {
+          const val = info.getValue();
+          return val ? <span>{val}</span> : <span className="text-gray-400">-</span>;
+        },
+      }),
+      columnHelper.accessor('functionality_timeline', {
+        header: 'Functionality',
+        cell: (info) => {
+          const val = info.getValue();
+          return val ? <span>{val}</span> : <span className="text-gray-400">-</span>;
+        },
+      }),
       columnHelper.accessor('response_time_days', {
         header: 'Response Time',
         cell: (info) => {

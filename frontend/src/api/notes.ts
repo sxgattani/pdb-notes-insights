@@ -49,6 +49,10 @@ export type Note = {
   creator: MemberRef | null;
   company: CompanyRef | null;
   has_features: boolean;
+  opportunity_type: string | null;
+  product_area: string | null;
+  customer_impact: string | null;
+  functionality_timeline: string | null;
 };
 
 export type NoteDetail = Note & {
@@ -80,6 +84,10 @@ export type NotesParams = {
   sort?: string;
   order?: 'asc' | 'desc';
   has_features?: boolean;
+  opportunity_type?: string;
+  product_area?: string;
+  customer_impact?: string;
+  functionality_timeline?: string;
 };
 
 export type FilterOption = {

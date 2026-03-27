@@ -12,13 +12,19 @@ const COLUMN_DEFINITIONS: { id: string; label: string }[] = [
   { id: 'owner', label: 'Owner' },
   { id: 'state', label: 'State' },
   { id: 'has_features', label: 'Linked Feature' },
+  { id: 'opportunity_type', label: 'Opp. Type' },
+  { id: 'product_area', label: 'Product Area' },
+  { id: 'customer_impact', label: 'Customer Impact' },
+  { id: 'functionality_timeline', label: 'Functionality' },
   { id: 'response_time_days', label: 'Response Time' },
   { id: 'updated_at', label: 'Updated' },
   { id: 'created_at', label: 'Created' },
 ];
 
 const DEFAULT_VISIBLE_COLUMNS = new Set(
-  COLUMN_DEFINITIONS.map((c) => c.id).filter((id) => id !== 'created_at')
+  COLUMN_DEFINITIONS.map((c) => c.id).filter(
+    (id) => !['created_at', 'opportunity_type', 'product_area', 'customer_impact', 'functionality_timeline'].includes(id)
+  )
 );
 
 function loadVisibleColumns(): Set<string> {
@@ -89,6 +95,10 @@ export function NotesListPage() {
   const sort = searchParams.get('sort') || 'created_at';
   const order = (searchParams.get('order') || 'desc') as 'asc' | 'desc';
   const linkedFeature = searchParams.get('linked_feature') || '';
+  const opportunityType = searchParams.get('opportunity_type') || '';
+  const productArea = searchParams.get('product_area') || '';
+  const customerImpact = searchParams.get('customer_impact') || '';
+  const functionalityTimeline = searchParams.get('functionality_timeline') || '';
 
   // Fetch filter options
   const { data: filterOptions } = useQuery({
@@ -113,6 +123,10 @@ export function NotesListPage() {
     ...(groupBy && { group_by: groupBy as 'owner' | 'creator' | 'company' }),
     ...(linkedFeature === 'true' && { has_features: true }),
     ...(linkedFeature === 'false' && { has_features: false }),
+    ...(opportunityType && { opportunity_type: opportunityType }),
+    ...(productArea && { product_area: productArea }),
+    ...(customerImpact && { customer_impact: customerImpact }),
+    ...(functionalityTimeline && { functionality_timeline: functionalityTimeline }),
   };
 
   const { data, isLoading } = useQuery({
@@ -144,7 +158,7 @@ export function NotesListPage() {
     setSearchParams(new URLSearchParams({ sort: 'created_at', order: 'desc' }));
   };
 
-  const hasActiveFilters = state || ownerId || unassigned || creatorId || companyId || createdAfter || createdBefore || updatedAfter || updatedBefore || linkedFeature;
+  const hasActiveFilters = state || ownerId || unassigned || creatorId || companyId || createdAfter || createdBefore || updatedAfter || updatedBefore || linkedFeature || opportunityType || productArea || customerImpact || functionalityTimeline;
 
   return (
     <div className="p-8">
@@ -345,6 +359,75 @@ export function NotesListPage() {
                 <option value="">All Features</option>
                 <option value="true">Linked</option>
                 <option value="false">Not linked</option>
+              </select>
+            </div>
+
+            {/* Opportunity Type Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Opportunity Type</label>
+              <select
+                value={opportunityType}
+                onChange={(e) => updateParams({ opportunity_type: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Types</option>
+                <option value="Customer">Customer</option>
+                <option value="Prospect">Prospect</option>
+                <option value="Internal">Internal</option>
+              </select>
+            </div>
+
+            {/* Product Area Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Product Area</label>
+              <select
+                value={productArea}
+                onChange={(e) => updateParams({ product_area: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Areas</option>
+                <option value="Vulnerability Management">Vulnerability Management</option>
+                <option value="Risk, Inventory">Risk, Inventory</option>
+                <option value="D&R">D&R</option>
+                <option value="Posture/Compliance">Posture/Compliance</option>
+                <option value="CIEM">CIEM</option>
+                <option value="DSPM">DSPM</option>
+                <option value="Platform">Platform</option>
+                <option value="Sage">Sage</option>
+                <option value="Monitor">Monitor</option>
+              </select>
+            </div>
+
+            {/* Customer Impact Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Customer Impact</label>
+              <select
+                value={customerImpact}
+                onChange={(e) => updateParams({ customer_impact: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Impact</option>
+                <option value="Critical / Blocker">Critical / Blocker</option>
+                <option value="High / Significant pain">High / Significant pain</option>
+                <option value="Moderate pain, could affect renewal/PoC">Moderate pain, could affect renewal/PoC</option>
+                <option value="Low / Nice to have">Low / Nice to have</option>
+                <option value="Informational">Informational</option>
+              </select>
+            </div>
+
+            {/* Functionality Timeline Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Functionality Timeline</label>
+              <select
+                value={functionalityTimeline}
+                onChange={(e) => updateParams({ functionality_timeline: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Timelines</option>
+                <option value="3 Months">3 Months</option>
+                <option value="6 Months">6 Months</option>
+                <option value="9 Months">9 Months</option>
+                <option value="Greater than 9 Months">Greater than 9 Months</option>
               </select>
             </div>
           </div>
