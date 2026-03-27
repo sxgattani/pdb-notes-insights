@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { notesApi } from '../api/notes';
@@ -6,9 +6,73 @@ import type { NotesParams } from '../api/notes';
 import { NotesTable } from '../components/NotesTable';
 import { Pagination } from '../components/Pagination';
 
+const COLUMN_DEFINITIONS: { id: string; label: string }[] = [
+  { id: 'title', label: 'Title' },
+  { id: 'company', label: 'Company' },
+  { id: 'owner', label: 'Owner' },
+  { id: 'state', label: 'State' },
+  { id: 'has_features', label: 'Linked Feature' },
+  { id: 'response_time_days', label: 'Response Time' },
+  { id: 'updated_at', label: 'Updated' },
+  { id: 'created_at', label: 'Created' },
+];
+
+const DEFAULT_VISIBLE_COLUMNS = new Set(
+  COLUMN_DEFINITIONS.map((c) => c.id).filter((id) => id !== 'created_at')
+);
+
+function loadVisibleColumns(): Set<string> {
+  try {
+    const stored = localStorage.getItem('notes-table-columns');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed) || !parsed.every(id => COLUMN_DEFINITIONS.some(col => col.id === id))) {
+        return new Set(DEFAULT_VISIBLE_COLUMNS);
+      }
+      if (Array.isArray(parsed)) {
+        return new Set(parsed as string[]);
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return DEFAULT_VISIBLE_COLUMNS;
+}
+
 export function NotesListPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [showFilters, setShowFilters] = useState(false);
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Set<string>>(loadVisibleColumns);
+  const columnPickerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (columnPickerRef.current && !columnPickerRef.current.contains(e.target as Node)) {
+        setShowColumnPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const toggleColumn = (id: string) => {
+    if (id === 'title') return;
+    setVisibleColumns((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      try {
+        localStorage.setItem('notes-table-columns', JSON.stringify([...next]));
+      } catch {
+        // quota exceeded or private mode — ignore
+      }
+      return next;
+    });
+  };
 
   // Parse URL params
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -97,6 +161,41 @@ export function NotesListPage() {
             </svg>
             <span>Filters{hasActiveFilters ? ' (Active)' : ''}</span>
           </button>
+
+          {/* Columns Button + Dropdown */}
+          <div ref={columnPickerRef} className="relative">
+            <button
+              onClick={() => setShowColumnPicker(!showColumnPicker)}
+              className="px-3 py-2 text-sm border rounded flex items-center space-x-2 hover:bg-gray-50"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5h18M3 10h18M3 15h18M3 20h18" />
+              </svg>
+              <span>Columns</span>
+            </button>
+            {showColumnPicker && (
+              <div className="absolute right-0 mt-1 z-10 bg-white border rounded shadow p-3 min-w-[180px]">
+                <p className="text-xs font-medium text-gray-500 mb-2">Show columns</p>
+                {COLUMN_DEFINITIONS.map((col) => {
+                  const isTitle = col.id === 'title';
+                  return (
+                    <label
+                      key={col.id}
+                      className={`flex items-center gap-2 py-1 text-sm text-gray-700 ${isTitle ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isTitle || visibleColumns.has(col.id)}
+                        disabled={isTitle}
+                        onChange={() => toggleColumn(col.id)}
+                      />
+                      {col.label}
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Group By */}
           <select
@@ -268,6 +367,7 @@ export function NotesListPage() {
         sort={sort}
         order={order}
         onSort={(newSort, newOrder) => updateParams({ sort: newSort, order: newOrder })}
+        visibleColumns={visibleColumns}
       />
 
       {data && !groupBy && (

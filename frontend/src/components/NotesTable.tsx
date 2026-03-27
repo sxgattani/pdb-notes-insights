@@ -33,6 +33,7 @@ interface NotesTableProps {
   sort?: string;
   order?: 'asc' | 'desc';
   onSort?: (sort: string, order: 'asc' | 'desc') => void;
+  visibleColumns?: Set<string>;
 }
 
 // Sort indicator component
@@ -58,7 +59,7 @@ function SortIndicator({ active, direction }: { active: boolean; direction: 'asc
   );
 }
 
-export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy, sort, order, onSort }: NotesTableProps) {
+export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy, sort, order, onSort, visibleColumns }: NotesTableProps) {
   const navigate = useNavigate();
 
   // Handle column header click for sorting
@@ -81,7 +82,7 @@ export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy
     return sort === sortField;
   };
 
-  const columns = useMemo(
+  const allColumns = useMemo(
     () => [
       // Column order: Title, Company, Owner, State, Response Time, Updated, Created
       columnHelper.accessor('title', {
@@ -206,6 +207,14 @@ export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy
     []
   );
 
+  const columns = useMemo(
+    () =>
+      !visibleColumns
+        ? allColumns
+        : allColumns.filter((col) => col.id === 'title' || visibleColumns.has(col.id)),
+    [allColumns, visibleColumns]
+  );
+
   const table = useReactTable({
     data: notes,
     columns,
@@ -249,7 +258,7 @@ export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy
                   {groupName} <span className="text-gray-500 font-normal">({totalCount})</span>
                 </h3>
               </div>
-              <NotesTableBody notes={groupNotes} columns={columns} navigate={navigate} sort={sort} order={order} onSort={onSort} />
+              <NotesTableBody notes={groupNotes} columns={columns} navigate={navigate} sort={sort} order={order} onSort={onSort} visibleColumns={visibleColumns} />
             </div>
           );
         })}
@@ -315,6 +324,7 @@ function NotesTableBody({
   sort,
   order,
   onSort,
+  visibleColumns,
 }: {
   notes: Note[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -323,10 +333,16 @@ function NotesTableBody({
   sort?: string;
   order?: 'asc' | 'desc';
   onSort?: (sort: string, order: 'asc' | 'desc') => void;
+  visibleColumns?: Set<string>;
 }) {
+  const filteredColumns = useMemo(
+    () => !visibleColumns ? columns : columns.filter(col => col.id === 'title' || visibleColumns.has(col.id)),
+    [columns, visibleColumns]
+  );
+
   const table = useReactTable({
     data: notes,
-    columns: columns as any,
+    columns: filteredColumns as any,
     getCoreRowModel: getCoreRowModel(),
   });
 
