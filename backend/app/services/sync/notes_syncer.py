@@ -357,7 +357,7 @@ class NotesSyncer(BaseSyncer[Note]):
                     pb_feature = await self._features_api.get_feature(feature_pb_id)
                     if pb_feature:
                         feature.name = pb_feature.get("name")
-                        feature.display_url = pb_feature.get("links", {}).get("self") or pb_feature.get("displayUrl")
+                        feature.display_url = pb_feature.get("links", {}).get("html") or pb_feature.get("displayUrl")
                 except Exception as e:
                     logger.warning(f"Failed to fetch feature {feature_pb_id}: {e}")
 
