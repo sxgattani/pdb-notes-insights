@@ -15,6 +15,10 @@ class Note(Base):
     content = Column(Text)
     state = Column(String, index=True)  # processed, unprocessed
     source_origin = Column(String, index=True)  # feature_request, etc.
+    opportunity_type = Column(String, index=True)       # Customer, Prospect, Internal
+    product_area = Column(String, index=True)           # D&R, CIEM, etc.
+    customer_impact = Column(String, index=True)        # e.g. Moderate pain...
+    functionality_timeline = Column(String, index=True) # 3 Months, 6 Months, etc.
     display_url = Column(String)  # link to ProductBoard
     external_display_url = Column(String)  # external link if any
     tags = Column(JSON().with_variant(JSONB, "postgresql"))  # array of tags
