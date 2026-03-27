@@ -68,11 +68,10 @@ def list_notes(
         query = query.filter(Note.updated_at < updated_before_dt)
 
     # has_features filter
+    notes_with_features = db.query(NoteFeature.note_id).distinct()
     if has_features is True:
-        notes_with_features = db.query(NoteFeature.note_id).distinct()
         query = query.filter(Note.id.in_(notes_with_features))
     elif has_features is False:
-        notes_with_features = db.query(NoteFeature.note_id).distinct()
         query = query.filter(Note.id.notin_(notes_with_features))
 
     # Sorting - handle both direct columns and related fields
@@ -156,8 +155,16 @@ def list_notes(
     total = query.count()
     notes = query.offset((page - 1) * limit).limit(limit).all()
 
+    # Pre-fetch which note IDs have features in a single query to avoid N+1
+    note_ids_with_features = {
+        row.note_id for row in db.query(NoteFeature.note_id)
+        .filter(NoteFeature.note_id.in_([n.id for n in notes]))
+        .distinct()
+        .all()
+    }
+
     # Convert to dicts with relationships
-    notes_data = [_note_to_dict(n, db) for n in notes]
+    notes_data = [_note_to_dict(n, db, has_features=n.id in note_ids_with_features) for n in notes]
 
     # Group paginated results for display
     grouped_data = None
@@ -330,7 +337,7 @@ def _member_to_dict(member: Optional[Member]) -> Optional[dict]:
     }
 
 
-def _note_to_dict(note: Note, db: Session = None) -> dict:
+def _note_to_dict(note: Note, db: Session = None, has_features: Optional[bool] = None) -> dict:
     """Convert Note model to dict with relationships."""
     result = {
         "id": note.id,
@@ -372,8 +379,10 @@ def _note_to_dict(note: Note, db: Session = None) -> dict:
         else:
             result["company"] = None
 
-        result["has_features"] = db.query(NoteFeature).filter(NoteFeature.note_id == note.id).first() is not None
+        result["has_features"] = has_features if has_features is not None else (
+            db.query(NoteFeature).filter(NoteFeature.note_id == note.id).first() is not None
+        )
     else:
-        result["has_features"] = False
+        result["has_features"] = False if has_features is None else has_features
 
     return result
