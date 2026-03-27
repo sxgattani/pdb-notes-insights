@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 import logging
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.services.sync.base import BaseSyncer
 from app.services.sync.members_syncer import get_or_create_member
 from app.models import Note, Member, Company, Feature, NoteFeature, NoteComment
-from app.integrations.productboard import ProductBoardClient, NotesAPI, CompaniesAPI
+from app.integrations.productboard import ProductBoardClient, NotesAPI, CompaniesAPI, FeaturesAPI
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class NotesSyncer(BaseSyncer[Note]):
     def __init__(self, db):
         super().__init__(db)
         self._companies_api: Optional[CompaniesAPI] = None
+        self._features_api: Optional[FeaturesAPI] = None
         self._company_cache: dict[str, int] = {}  # pb_id -> id
 
     async def sync(self) -> int:
@@ -47,6 +49,7 @@ class NotesSyncer(BaseSyncer[Note]):
             async with ProductBoardClient() as client:
                 notes_api = NotesAPI(client)
                 self._companies_api = CompaniesAPI(client)
+                self._features_api = FeaturesAPI(client)
 
                 pb_notes = await notes_api.list_notes(updated_after=last_sync)
 
@@ -77,6 +80,7 @@ class NotesSyncer(BaseSyncer[Note]):
             raise
         finally:
             self._companies_api = None
+            self._features_api = None
 
     async def _full_sync(self) -> int:
         """Perform full sync - fetch all notes and soft delete missing ones."""
@@ -91,6 +95,7 @@ class NotesSyncer(BaseSyncer[Note]):
             async with ProductBoardClient() as client:
                 notes_api = NotesAPI(client)
                 self._companies_api = CompaniesAPI(client)
+                self._features_api = FeaturesAPI(client)
 
                 # Fetch ALL notes (no updated_after filter)
                 pb_notes = await notes_api.list_notes(updated_after=None)
@@ -128,6 +133,7 @@ class NotesSyncer(BaseSyncer[Note]):
             raise
         finally:
             self._companies_api = None
+            self._features_api = None
 
     def _soft_delete_missing_notes(self, seen_pb_ids: set[str]) -> int:
         """Soft delete notes that are in our DB but not in ProductBoard."""
@@ -151,17 +157,20 @@ class NotesSyncer(BaseSyncer[Note]):
         return len(missing_notes)
 
     async def _enrich_notes(self, api: NotesAPI, note_pb_ids: list[str]):
-        """Fetch full details for notes to get comments."""
+        """Fetch full details for notes to get comments and all linked features."""
         for pb_id in note_pb_ids:
             try:
-                pb_note = await api.get_note(pb_id)
+                pb_note, features_data = await asyncio.gather(
+                    api.get_note(pb_id),
+                    api.get_note_features(pb_id),
+                )
                 if pb_note:
-                    self._enrich_note(pb_note)
+                    await self._enrich_note(pb_note, features_data)
             except Exception as e:
                 logger.warning(f"Failed to enrich note {pb_id}: {e}")
 
-    def _enrich_note(self, pb_note: dict):
-        """Update a note with enriched data (comments)."""
+    async def _enrich_note(self, pb_note: dict, features_data: list):
+        """Update a note with enriched data (comments and all linked features)."""
         pb_id = pb_note.get("id")
         note = self.db.query(Note).filter(Note.pb_id == pb_id).first()
 
@@ -176,6 +185,9 @@ class NotesSyncer(BaseSyncer[Note]):
 
         # Sync comments (most recent 5)
         self._sync_note_comments(note, pb_note.get("comments", []))
+
+        # Sync all linked features from the dedicated paginated endpoint
+        await self._sync_note_features(note, features_data)
 
     async def _get_or_fetch_company(self, company_pb_id: str) -> Optional[int]:
         """Get company ID from cache or fetch from API."""
@@ -313,11 +325,11 @@ class NotesSyncer(BaseSyncer[Note]):
         self.db.flush()
 
         # Handle features
-        self._sync_note_features(note, pb_note.get("features", []))
+        await self._sync_note_features(note, pb_note.get("features", []))
 
         return note
 
-    def _sync_note_features(self, note: Note, features_data: list):
+    async def _sync_note_features(self, note: Note, features_data: list):
         """Sync features linked to a note."""
         if not features_data:
             return
@@ -338,7 +350,18 @@ class NotesSyncer(BaseSyncer[Note]):
             if not feature:
                 feature = Feature(pb_id=feature_pb_id)
                 self.db.add(feature)
-                self.db.flush()
+
+            # Fetch feature details (name, display_url) if not yet populated
+            if not feature.name and self._features_api:
+                try:
+                    pb_feature = await self._features_api.get_feature(feature_pb_id)
+                    if pb_feature:
+                        feature.name = pb_feature.get("name")
+                        feature.display_url = pb_feature.get("links", {}).get("self") or pb_feature.get("displayUrl")
+                except Exception as e:
+                    logger.warning(f"Failed to fetch feature {feature_pb_id}: {e}")
+
+            self.db.flush()
 
             # Create link
             note_feature = NoteFeature(
