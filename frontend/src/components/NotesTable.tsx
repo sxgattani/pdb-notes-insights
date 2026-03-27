@@ -154,6 +154,24 @@ export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy
           );
         },
       }),
+      columnHelper.accessor('has_features', {
+        header: 'Linked Feature',
+        cell: (info) => {
+          const hasFeatures = info.getValue();
+          if (hasFeatures) {
+            return (
+              <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                Linked
+              </span>
+            );
+          }
+          return (
+            <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-500">
+              Unlinked
+            </span>
+          );
+        },
+      }),
       columnHelper.accessor('response_time_days', {
         header: 'Response Time',
         cell: (info) => {

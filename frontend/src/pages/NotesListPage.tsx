@@ -24,6 +24,7 @@ export function NotesListPage() {
   const groupBy = searchParams.get('group_by') || '';
   const sort = searchParams.get('sort') || 'created_at';
   const order = (searchParams.get('order') || 'desc') as 'asc' | 'desc';
+  const linkedFeature = searchParams.get('linked_feature') || '';
 
   // Fetch filter options
   const { data: filterOptions } = useQuery({
@@ -46,6 +47,8 @@ export function NotesListPage() {
     ...(updatedAfter && { updated_after: updatedAfter }),
     ...(updatedBefore && { updated_before: updatedBefore }),
     ...(groupBy && { group_by: groupBy as 'owner' | 'creator' | 'company' }),
+    ...(linkedFeature === 'true' && { has_features: true }),
+    ...(linkedFeature === 'false' && { has_features: false }),
   };
 
   const { data, isLoading } = useQuery({
@@ -77,7 +80,7 @@ export function NotesListPage() {
     setSearchParams(new URLSearchParams({ sort: 'created_at', order: 'desc' }));
   };
 
-  const hasActiveFilters = state || ownerId || unassigned || creatorId || companyId || createdAfter || createdBefore || updatedAfter || updatedBefore;
+  const hasActiveFilters = state || ownerId || unassigned || creatorId || companyId || createdAfter || createdBefore || updatedAfter || updatedBefore || linkedFeature;
 
   return (
     <div className="p-8">
@@ -230,6 +233,20 @@ export function NotesListPage() {
                 onChange={(e) => updateParams({ updated_before: e.target.value || undefined })}
                 className="w-full border rounded px-3 py-2 text-sm"
               />
+            </div>
+
+            {/* Feature Link Filter */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Feature Link</label>
+              <select
+                value={linkedFeature}
+                onChange={(e) => updateParams({ linked_feature: e.target.value || undefined })}
+                className="w-full border rounded px-3 py-2 text-sm"
+              >
+                <option value="">All Features</option>
+                <option value="true">Linked</option>
+                <option value="false">Not linked</option>
+              </select>
             </div>
           </div>
         </div>

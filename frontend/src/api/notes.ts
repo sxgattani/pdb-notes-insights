@@ -48,6 +48,7 @@ export type Note = {
   owner: MemberRef | null;
   creator: MemberRef | null;
   company: CompanyRef | null;
+  has_features: boolean;
 };
 
 export type NoteDetail = Note & {
@@ -78,6 +79,7 @@ export type NotesParams = {
   group_by?: 'owner' | 'creator' | 'company';
   sort?: string;
   order?: 'asc' | 'desc';
+  has_features?: boolean;
 };
 
 export type FilterOption = {
