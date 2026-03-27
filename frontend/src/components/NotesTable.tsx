@@ -211,7 +211,7 @@ export function NotesTable({ notes, isLoading, groupedData, groupCounts, groupBy
     () =>
       !visibleColumns
         ? allColumns
-        : allColumns.filter((col) => col.id === 'title' || visibleColumns.has(col.id)),
+        : allColumns.filter((col) => col.id === 'title' || visibleColumns.has(col.id ?? '')),
     [allColumns, visibleColumns]
   );
 
@@ -336,7 +336,7 @@ function NotesTableBody({
   visibleColumns?: Set<string>;
 }) {
   const filteredColumns = useMemo(
-    () => !visibleColumns ? columns : columns.filter(col => col.id === 'title' || visibleColumns.has(col.id)),
+    () => !visibleColumns ? columns : columns.filter(col => col.id === 'title' || visibleColumns.has(col.id ?? '')),
     [columns, visibleColumns]
   );
 
